@@ -1,0 +1,1219 @@
+import { Plugin, MarkdownPostProcessorContext, TFile, FileView, WorkspaceLeaf } from 'obsidian';
+import { h, render } from 'preact';
+import { Goban } from '@sabaki/shudan';
+// @ts-ignore
+import * as sgf from '@sabaki/sgf';
+
+// View for displaying SGF files
+class SGFView extends FileView {
+	plugin: GoBoardViewerPlugin;
+
+	constructor(leaf: WorkspaceLeaf, plugin: GoBoardViewerPlugin) {
+		super(leaf);
+		this.plugin = plugin;
+	}
+
+	getViewType(): string {
+		return 'sgf';
+	}
+
+	getDisplayText(): string {
+		return this.file ? this.file.basename : 'SGF Board';
+	}
+
+	async onLoadFile(file: TFile): Promise<void> {
+		console.log('SGFView: Loading file:', file.path);
+		const content = await this.app.vault.read(file);
+
+		// Clear container
+		const container = this.contentEl;
+		container.empty();
+
+		// Render Go board
+		this.plugin.renderGoBoard(container, content);
+	}
+
+	async onUnloadFile(file: TFile): Promise<void> {
+		// Clear the view
+		this.contentEl.empty();
+	}
+}
+
+export default class GoBoardViewerPlugin extends Plugin {
+	private mutationObserver: MutationObserver | null = null;
+
+	/**
+	 * Convert SGF coordinates to board coordinates
+	 * SGF: 'aa' = top-left, first letter = x (column), second = y (row)
+	 * shudan signMap: indexed as [y][x] (row, column)
+	 * So SGF 'dd' (x=3, y=3) → signMap[3][3]
+	 */
+	private point2vertex(point: string): { x: number; y: number } {
+		if (!point || point.length < 2) {
+			return { x: -1, y: -1 };
+		}
+		const x = point.charCodeAt(0) - 97; // 'a' = 97, column
+		const y = point.charCodeAt(1) - 97; // 'a' = 97, row
+		return { x, y };
+	}
+
+	async onload() {
+		console.log('Loading Go Board Viewer plugin (Sabaki version)');
+
+		// Register markdown code block processor for SGF (both lowercase and uppercase)
+		this.registerMarkdownCodeBlockProcessor('sgf', this.processSGFCodeBlock.bind(this));
+		this.registerMarkdownCodeBlockProcessor('SGF', this.processSGFCodeBlock.bind(this));
+
+		// Register SGF file extension (both lowercase and uppercase)
+		this.registerExtensions(['sgf', 'SGF'], 'sgf');
+
+		// Register view for SGF files
+		this.registerView(
+			'sgf',
+			(leaf) => new SGFView(leaf, this)
+		);
+
+		// Register markdown post processor for SGF file embeds
+		this.registerMarkdownPostProcessor(this.processSGFFileEmbed.bind(this));
+
+		// Use MutationObserver to watch for SGF embeds being added to DOM
+		this.setupMutationObserver();
+
+		// Initial processing
+		setTimeout(() => this.processSGFEmbeds(), 1000);
+
+		console.log('Go Board Viewer plugin loaded');
+	}
+
+	setupMutationObserver() {
+		console.log('Setting up MutationObserver for SGF embeds');
+
+		// Create observer to watch for new elements
+		this.mutationObserver = new MutationObserver((mutations) => {
+			for (let i = 0; i < mutations.length; i++) {
+				const mutation = mutations[i];
+				// Check added nodes
+				for (let j = 0; j < mutation.addedNodes.length; j++) {
+					const node = mutation.addedNodes[j];
+					if (node.nodeType === Node.ELEMENT_NODE) {
+						const element = node as HTMLElement;
+
+						// Check for .sgf in src or alt attributes
+						const src = element.getAttribute('src');
+						const alt = element.getAttribute('alt');
+
+						// Skip verbose logging - only log if actually processing
+
+						// Check if this element itself is an SGF embed
+						if (element.classList.contains('internal-embed')) {
+							const embedSrc = element.getAttribute('src') || element.getAttribute('alt');
+							if (embedSrc && embedSrc.toLowerCase().endsWith('.sgf')) {
+								this.processSGFEmbed(element);
+							}
+						}
+
+						// Also check children for embeds
+						const embeds = element.querySelectorAll('.internal-embed');
+						if (embeds.length > 0) {
+							embeds.forEach((embed) => {
+								const el = embed as HTMLElement;
+								const embedSrc = el.getAttribute('src') || el.getAttribute('alt');
+								if (embedSrc && embedSrc.toLowerCase().endsWith('.sgf')) {
+									this.processSGFEmbed(el);
+								}
+							});
+						}
+					}
+				}
+			}
+		});
+
+		// Start observing the document body for changes
+		this.mutationObserver.observe(document.body, {
+			childList: true,
+			subtree: true
+		});
+
+		console.log('MutationObserver started');
+	}
+
+	async processSGFEmbed(embed: HTMLElement) {
+		// Skip if already processed
+		if (embed.hasAttribute('data-sgf-processed')) {
+			return;
+		}
+		embed.setAttribute('data-sgf-processed', 'true');
+
+		const src = embed.getAttribute('src') || embed.getAttribute('alt');
+		if (!src || !src.toLowerCase().endsWith('.sgf')) {
+			return;
+		}
+
+		// Get the file
+		const file = this.app.metadataCache.getFirstLinkpathDest(src, '');
+		if (!file || !(file instanceof TFile)) {
+			console.error('Go Board Viewer: Could not find file:', src);
+			return;
+		}
+
+		try {
+			const sgfContent = await this.app.vault.read(file);
+
+			// Clear the embed's contents
+			embed.empty();
+
+			// Add our container inside the embed
+			const container = embed.createDiv('goboard-container');
+
+			// Render the board
+			this.renderGoBoard(container, sgfContent);
+		} catch (error) {
+			console.error('Go Board Viewer: Error loading SGF:', error);
+		}
+	}
+
+	// Process all SGF embeds in the current workspace
+	async processSGFEmbeds() {
+		console.log('Processing SGF embeds in document');
+
+		// Debug: Log all .internal-embed elements
+		const allEmbeds = document.querySelectorAll('.internal-embed');
+		console.log('Total .internal-embed elements found:', allEmbeds.length);
+		allEmbeds.forEach((el, idx) => {
+			console.log(`Embed ${idx}:`, {
+				tagName: el.tagName,
+				className: el.className,
+				src: el.getAttribute('src'),
+				alt: el.getAttribute('alt'),
+				href: el.getAttribute('href')
+			});
+		});
+
+		// Search entire document instead of just view containers
+		let embeds: NodeListOf<Element>;
+
+		// Try to find in preview/reading mode
+		embeds = document.querySelectorAll('.internal-embed[src$=".sgf"]');
+		console.log('Found with .internal-embed[src$=".sgf"]:', embeds.length);
+
+		if (embeds.length === 0) {
+			embeds = document.querySelectorAll('.internal-embed.file-embed[src*=".sgf"]');
+			console.log('Found with .internal-embed.file-embed[src*=".sgf"]:', embeds.length);
+		}
+
+		if (embeds.length === 0) {
+			embeds = document.querySelectorAll('div[src$=".sgf"]');
+			console.log('Found with div[src$=".sgf"]:', embeds.length);
+		}
+
+		// Try to find in live preview mode
+		if (embeds.length === 0) {
+			embeds = document.querySelectorAll('a.internal-link[href$=".sgf"]');
+			console.log('Found with a.internal-link[href$=".sgf"]:', embeds.length);
+		}
+
+		const embedsArray = Array.from(embeds);
+		console.log('Starting loop through', embedsArray.length, 'embeds');
+
+		for (let i = 0; i < embedsArray.length; i++) {
+			const embed = embedsArray[i] as HTMLElement;
+			console.log(`Processing embed ${i}:`, embed);
+
+			// Skip if already processed
+			if (embed.hasAttribute('data-sgf-processed')) {
+				console.log('Already processed, skipping');
+				continue;
+			}
+			embed.setAttribute('data-sgf-processed', 'true');
+			console.log('Marked as processed');
+
+			const src = embed.getAttribute('src');
+			const alt = embed.getAttribute('alt');
+			console.log('src attribute:', src);
+			console.log('alt attribute:', alt);
+
+			const finalSrc = src || alt;
+			console.log('Processing embed with finalSrc:', finalSrc);
+
+			if (!finalSrc || !finalSrc.toLowerCase().endsWith('.sgf')) {
+				console.log('Not an SGF file:', finalSrc);
+				continue;
+			}
+
+			// Get the file
+			const file = this.app.metadataCache.getFirstLinkpathDest(finalSrc, '');
+			console.log('Looking for file:', finalSrc, 'Result:', file);
+
+			if (!file || !(file instanceof TFile)) {
+				console.error('Could not find file:', finalSrc);
+				continue;
+			}
+
+			try {
+				const sgfContent = await this.app.vault.read(file);
+				console.log('Read SGF content, length:', sgfContent.length);
+
+				// Create container for the Go board
+				const container = document.createElement('div');
+				container.className = 'goboard-container';
+
+				// Replace the embed with our Go board
+				embed.replaceWith(container);
+
+				// Render the board
+				this.renderGoBoard(container, sgfContent);
+				console.log('Successfully rendered Go board for:', finalSrc);
+			} catch (error) {
+				console.error('Error reading or rendering SGF file:', error);
+			}
+		}
+	}
+
+	onunload() {
+		console.log('Unloading Go Board Viewer plugin');
+		if (this.mutationObserver) {
+			this.mutationObserver.disconnect();
+			console.log('MutationObserver disconnected');
+		}
+	}
+
+	/**
+	 * Process SGF code blocks (```sgf ... ```)
+	 */
+	async processSGFCodeBlock(
+		source: string,
+		el: HTMLElement,
+		ctx: MarkdownPostProcessorContext
+	) {
+		this.renderGoBoard(el, source.trim());
+	}
+
+	/**
+	 * Process SGF file embeds (![[file.sgf]])
+	 */
+	async processSGFFileEmbed(
+		el: HTMLElement,
+		ctx: MarkdownPostProcessorContext
+	) {
+		// Log every call to see if this is being invoked
+		const hasInternalLink = el.querySelector('a.internal-link');
+		const hasSgfText = el.textContent?.includes('.sgf');
+
+		if (hasInternalLink || hasSgfText) {
+			console.log('=== processSGFFileEmbed called ===');
+			console.log('Element:', el.tagName, el.className);
+			console.log('Has internal-link:', !!hasInternalLink);
+			console.log('Text content:', el.textContent?.substring(0, 100));
+		}
+
+		// Check if this element itself is an SGF embed
+		const isSGFEmbed = el.classList.contains('internal-embed') &&
+			(el.getAttribute('src')?.toLowerCase().endsWith('.sgf') || el.getAttribute('alt')?.toLowerCase().endsWith('.sgf'));
+
+		// Look for SGF file embeds within this element
+		const embeds = el.querySelectorAll('.internal-embed');
+
+		// Only log if we find something relevant
+		if (isSGFEmbed || embeds.length > 0) {
+			console.log('processSGFFileEmbed - Found relevant content');
+			console.log('Element tag:', el.tagName, 'classes:', el.className);
+			console.log('Is SGF embed:', isSGFEmbed);
+			console.log('Children embeds found:', embeds.length);
+
+			if (embeds.length > 0) {
+				for (let i = 0; i < embeds.length; i++) {
+					const e = embeds[i] as HTMLElement;
+					console.log(`Child embed ${i}:`, {
+						classes: e.className,
+						src: e.getAttribute('src'),
+						alt: e.getAttribute('alt')
+					});
+				}
+			}
+		}
+
+		// If this element itself is an SGF embed, process it
+		if (isSGFEmbed) {
+			await this.processEmbed(el, ctx);
+			return;
+		}
+
+		// Otherwise look for embeds in children
+		const sgfEmbeds: HTMLElement[] = [];
+		for (let i = 0; i < embeds.length; i++) {
+			const embed = embeds[i] as HTMLElement;
+			const src = embed.getAttribute('src') || embed.getAttribute('alt');
+			if (src && src.toLowerCase().endsWith('.sgf')) {
+				sgfEmbeds.push(embed);
+			}
+		}
+
+		// Process all SGF embeds found
+		for (const embed of sgfEmbeds) {
+			await this.processEmbed(embed, ctx);
+		}
+	}
+
+	/**
+	 * Helper to process a single embed element
+	 */
+	async processEmbed(embed: HTMLElement, ctx: MarkdownPostProcessorContext) {
+		// Try to get the file path from various attributes
+		let src = embed.getAttribute('src') || embed.getAttribute('alt');
+
+		console.log('processEmbed - Found embed:', embed);
+		console.log('processEmbed - src attribute:', src);
+
+		if (!src || !src.toLowerCase().endsWith('.sgf')) {
+			console.log('processEmbed - Not an SGF file, skipping');
+			return;
+		}
+
+		console.log('processEmbed - Processing SGF file:', src);
+
+		// Get the file
+		const file = this.app.metadataCache.getFirstLinkpathDest(src, ctx.sourcePath);
+		console.log('processEmbed - Resolved file:', file);
+
+		if (!file) {
+			console.error('processEmbed - Could not find file:', src);
+			return;
+		}
+
+		if (file instanceof TFile) {
+			try {
+				const sgfContent = await this.app.vault.read(file);
+				console.log('processEmbed - Read SGF content, length:', sgfContent.length);
+
+				// Create container for the Go board
+				const container = document.createElement('div');
+				container.className = 'goboard-container';
+
+				// Replace the embed with our Go board
+				embed.replaceWith(container);
+
+				// Render the board
+				this.renderGoBoard(container, sgfContent);
+				console.log('processEmbed - Successfully rendered Go board for:', src);
+			} catch (error) {
+				console.error('processEmbed - Error reading or rendering SGF file:', error);
+				const errorDiv = document.createElement('div');
+				errorDiv.className = 'goboard-error';
+				errorDiv.textContent = `Error loading SGF file: ${error.message}`;
+				embed.replaceWith(errorDiv);
+			}
+		}
+	}
+
+	/**
+	 * Render a Go board with the given SGF content using Sabaki
+	 */
+	public renderGoBoard(container: HTMLElement, sgfContent: string) {
+		try {
+			// Parse SGF
+			const gameTrees = sgf.parse(sgfContent);
+			if (!gameTrees || gameTrees.length === 0) {
+				throw new Error('No game tree found in SGF');
+			}
+
+			const gameTree = gameTrees[0];
+
+			// Debug: log the structure
+			console.log('Game tree:', gameTree);
+
+			// Handle different possible structures
+			const rootNode = gameTree.root || gameTree;
+
+			if (!rootNode) {
+				throw new Error('Could not find root node in game tree');
+			}
+
+			// Get board size from SGF
+			const nodeData = rootNode.data || {};
+			const sizeProperty = nodeData.SZ;
+			const boardSize = sizeProperty ? parseInt(sizeProperty[0]) : 19;
+
+			// Extract game information
+			const gameInfo = {
+				black: nodeData.PB ? nodeData.PB[0] : null,
+				white: nodeData.PW ? nodeData.PW[0] : null,
+				blackRank: nodeData.BR ? nodeData.BR[0] : null,
+				whiteRank: nodeData.WR ? nodeData.WR[0] : null,
+				result: nodeData.RE ? nodeData.RE[0] : null,
+				date: nodeData.DT ? nodeData.DT[0] : null,
+				event: nodeData.EV ? nodeData.EV[0] : null,
+				round: nodeData.RO ? nodeData.RO[0] : null,
+				place: nodeData.PC ? nodeData.PC[0] : null,
+				gameName: nodeData.GN ? nodeData.GN[0] : null,
+				komi: nodeData.KM ? nodeData.KM[0] : null,
+				handicap: nodeData.HA ? nodeData.HA[0] : null,
+				rules: nodeData.RU ? nodeData.RU[0] : null,
+			};
+
+			// Create wrapper and append to DOM first to get proper dimensions
+			const wrapper = document.createElement('div');
+			wrapper.className = 'goboard-wrapper';
+			container.appendChild(wrapper);
+
+			// Get actual available width from the parent container
+			// container is our created div, so look at its parent or the viewport
+			const parentElement = container.parentElement;
+			let availableContainerWidth = 700; // Default
+
+			if (parentElement) {
+				const parentWidth = parentElement.clientWidth || parentElement.offsetWidth;
+				if (parentWidth > 0) {
+					availableContainerWidth = parentWidth;
+				}
+			}
+
+			// If parent width is not available, use viewport width minus sidebars
+			if (availableContainerWidth === 700) {
+				const viewportWidth = window.innerWidth || document.documentElement.clientWidth;
+				// Assume sidebar takes about 300-400px on desktop, less on mobile
+				const estimatedSidebarWidth = viewportWidth < 768 ? 0 : 350;
+				availableContainerWidth = Math.max(300, viewportWidth - estimatedSidebarWidth - 40);
+			}
+
+			const containerWidth = Math.min(availableContainerWidth, 700);
+
+			console.log('Container width for board sizing:', containerWidth, 'parent width:', parentElement?.clientWidth, 'viewport:', window.innerWidth);
+
+			// Use default vertex size - we'll use CSS zoom instead
+			const calculatedVertexSize = 24;
+
+			// Add game info section if we have any info
+			if (gameInfo.black || gameInfo.white || gameInfo.event || gameInfo.gameName) {
+				const infoSection = document.createElement('div');
+				infoSection.className = 'goboard-game-info';
+
+				if (gameInfo.gameName) {
+					const titleEl = document.createElement('div');
+					titleEl.className = 'game-info-title';
+					titleEl.textContent = gameInfo.gameName;
+					infoSection.appendChild(titleEl);
+				}
+
+				if (gameInfo.event) {
+					const eventEl = document.createElement('div');
+					eventEl.className = 'game-info-event';
+					eventEl.textContent = gameInfo.event;
+					if (gameInfo.round) {
+						eventEl.textContent += ` - Round ${gameInfo.round}`;
+					}
+					infoSection.appendChild(eventEl);
+				}
+
+				const playersEl = document.createElement('div');
+				playersEl.className = 'game-info-players';
+
+				if (gameInfo.black || gameInfo.white) {
+					const blackName = gameInfo.black || 'Unknown';
+					const whiteName = gameInfo.white || 'Unknown';
+					const blackRank = gameInfo.blackRank ? ` (${gameInfo.blackRank})` : '';
+					const whiteRank = gameInfo.whiteRank ? ` (${gameInfo.whiteRank})` : '';
+
+					playersEl.innerHTML = `<span class="player-black">⚫ ${blackName}${blackRank}</span> vs <span class="player-white">⚪ ${whiteName}${whiteRank}</span>`;
+					infoSection.appendChild(playersEl);
+				}
+
+				const detailsEl = document.createElement('div');
+				detailsEl.className = 'game-info-details';
+				const details = [];
+
+				if (gameInfo.date) details.push(`Date: ${gameInfo.date}`);
+				if (gameInfo.place) details.push(`Place: ${gameInfo.place}`);
+				if (gameInfo.komi) details.push(`Komi: ${gameInfo.komi}`);
+				if (gameInfo.handicap) details.push(`Handicap: ${gameInfo.handicap}`);
+				if (gameInfo.rules) details.push(`Rules: ${gameInfo.rules}`);
+				if (gameInfo.result) details.push(`Result: ${gameInfo.result}`);
+
+				if (details.length > 0) {
+					detailsEl.textContent = details.join(' • ');
+					infoSection.appendChild(detailsEl);
+				}
+
+				wrapper.appendChild(infoSection);
+			}
+
+			// Create board container
+			const boardContainer = document.createElement('div');
+			boardContainer.className = 'goboard-display';
+			wrapper.appendChild(boardContainer);
+
+			console.log('Board size:', boardSize, 'Calculated vertexSize:', calculatedVertexSize, 'Container width:', containerWidth);
+
+			// Create controls container
+			const controlsContainer = document.createElement('div');
+			controlsContainer.className = 'goboard-controls';
+			wrapper.appendChild(controlsContainer);
+
+			// Game state
+			let currentNode = rootNode;
+			let moveNumber = 0;
+
+			// Build move tree with variations
+			interface MoveNode {
+				node: any;
+				moveNum: number;
+				variations: any[]; // Child nodes (variations)
+			}
+
+			const allMoves: MoveNode[] = [];
+			let currentVariationPath: number[] = []; // Which child index to follow at each decision point
+			let rootVariationIndex: number = 0; // Which root variation to follow
+
+			// Build complete move tree
+			const buildMoveTree = (startNode: any, path: number[] = []): MoveNode[] => {
+				const moves: MoveNode[] = [];
+				let current = startNode;
+
+				while (current) {
+					const data = current.data || {};
+
+					if (data.B || data.W) {
+						moves.push({
+							node: current,
+							moveNum: moves.length + 1,
+							variations: current.children || []
+						});
+
+						// Follow the selected variation path
+						if (current.children && Array.isArray(current.children) && current.children.length > 0) {
+							const pathIndex = path[moves.length - 1] || 0;
+							const childIndex = Math.min(pathIndex, current.children.length - 1);
+							current = current.children[childIndex];
+						} else {
+							break;
+						}
+					} else {
+						// Non-move node, continue
+						if (current.children && Array.isArray(current.children) && current.children.length > 0) {
+							current = current.children[0];
+						} else {
+							break;
+						}
+					}
+				}
+
+				return moves;
+			};
+
+			// Rebuild move tree based on current variation path
+			const rebuildMoveTree = () => {
+				// Start from the selected root variation
+				let startNode = rootNode;
+				if (rootNode && rootNode.children && rootNode.children.length > rootVariationIndex) {
+					startNode = rootNode.children[rootVariationIndex];
+				}
+				const moves = buildMoveTree(startNode, currentVariationPath);
+				allMoves.length = 0;
+				allMoves.push(...moves);
+			};
+
+			// Initialize with main line
+			rootVariationIndex = 0;
+			currentVariationPath = [];
+			rebuildMoveTree();
+
+			console.log('Collected moves:', allMoves.length);
+
+			// Function to get SGF markers and setup stones for current position
+			const getSGFMarkers = (): any[][] => {
+				const markerMap: any[][] = [];
+				for (let i = 0; i < boardSize; i++) {
+					markerMap[i] = new Array(boardSize).fill(null);
+				}
+
+				// Get current node data
+				let currentNodeData: any = {};
+				if (moveNumber === 0) {
+					currentNodeData = rootNode?.data || {};
+				} else if (moveNumber > 0 && moveNumber <= allMoves.length) {
+					const moveNode = allMoves[moveNumber - 1];
+					currentNodeData = moveNode.node?.data || {};
+				}
+
+				// Process SGF marker properties
+				// TR - Triangle
+				if (currentNodeData.TR) {
+					const triangles = Array.isArray(currentNodeData.TR) ? currentNodeData.TR : [currentNodeData.TR];
+					triangles.forEach((point: string) => {
+						const coords = this.point2vertex(point);
+						if (coords.x >= 0 && coords.y >= 0 && coords.x < boardSize && coords.y < boardSize) {
+							markerMap[coords.y][coords.x] = { type: 'triangle' };
+						}
+					});
+				}
+
+				// SQ - Square
+				if (currentNodeData.SQ) {
+					const squares = Array.isArray(currentNodeData.SQ) ? currentNodeData.SQ : [currentNodeData.SQ];
+					squares.forEach((point: string) => {
+						const coords = this.point2vertex(point);
+						if (coords.x >= 0 && coords.y >= 0 && coords.x < boardSize && coords.y < boardSize) {
+							markerMap[coords.y][coords.x] = { type: 'square' };
+						}
+					});
+				}
+
+				// CR - Circle
+				if (currentNodeData.CR) {
+					const circles = Array.isArray(currentNodeData.CR) ? currentNodeData.CR : [currentNodeData.CR];
+					circles.forEach((point: string) => {
+						const coords = this.point2vertex(point);
+						if (coords.x >= 0 && coords.y >= 0 && coords.x < boardSize && coords.y < boardSize) {
+							markerMap[coords.y][coords.x] = { type: 'circle' };
+						}
+					});
+				}
+
+				// MA - Mark (X)
+				if (currentNodeData.MA) {
+					const marks = Array.isArray(currentNodeData.MA) ? currentNodeData.MA : [currentNodeData.MA];
+					marks.forEach((point: string) => {
+						const coords = this.point2vertex(point);
+						if (coords.x >= 0 && coords.y >= 0 && coords.x < boardSize && coords.y < boardSize) {
+							markerMap[coords.y][coords.x] = { type: 'point' };
+						}
+					});
+				}
+
+				// LB - Label
+				if (currentNodeData.LB) {
+					const labels = Array.isArray(currentNodeData.LB) ? currentNodeData.LB : [currentNodeData.LB];
+					labels.forEach((labelData: string) => {
+						// LB format is "point:label" like "dd:A"
+						const match = labelData.match(/^([a-z]{2}):(.+)$/);
+						if (match) {
+							const coords = this.point2vertex(match[1]);
+							if (coords.x >= 0 && coords.y >= 0 && coords.x < boardSize && coords.y < boardSize) {
+								markerMap[coords.y][coords.x] = { type: 'label', label: match[2] };
+							}
+						}
+					});
+				}
+
+				// Add variation markers (if current position has variations)
+				let variationSource = null;
+				if (moveNumber === 0) {
+					// Check root node for variations
+					variationSource = rootNode;
+				} else if (moveNumber > 0 && moveNumber <= allMoves.length) {
+					// Check current move node for variations
+					variationSource = allMoves[moveNumber - 1].node;
+				}
+
+				if (variationSource && variationSource.children && variationSource.children.length > 1) {
+					variationSource.children.forEach((variation: any, index: number) => {
+						// Get the first move of this variation
+						const firstMove = variation.data?.B || variation.data?.W;
+
+						if (firstMove && Array.isArray(firstMove) && firstMove[0]) {
+							const coords = this.point2vertex(firstMove[0]);
+							if (coords.x >= 0 && coords.y >= 0 && coords.x < boardSize && coords.y < boardSize) {
+								// Only add if no other marker exists
+								if (!markerMap[coords.y][coords.x]) {
+									markerMap[coords.y][coords.x] = {
+										type: 'label',
+										label: String.fromCharCode(65 + index) // A, B, C, ...
+									};
+								}
+							}
+						}
+					});
+				}
+
+				console.log('MarkerMap generated:', markerMap);
+				return markerMap;
+			};
+
+			// Helper function to check if a group has any liberties
+			const hasLiberties = (signMap: (0 | 1 | -1)[][], x: number, y: number, color: 1 | -1, visited: boolean[][]): boolean => {
+				if (x < 0 || y < 0 || x >= boardSize || y >= boardSize) return false;
+				if (visited[y][x]) return false;
+
+				visited[y][x] = true;
+
+				// Empty point = liberty found
+				if (signMap[y][x] === 0) return true;
+
+				// Different color stone = no liberty here
+				if (signMap[y][x] !== color) return false;
+
+				// Same color stone = check neighbors
+				return hasLiberties(signMap, x + 1, y, color, visited) ||
+				       hasLiberties(signMap, x - 1, y, color, visited) ||
+				       hasLiberties(signMap, x, y + 1, color, visited) ||
+				       hasLiberties(signMap, x, y - 1, color, visited);
+			};
+
+			// Helper function to remove a group of stones
+			const removeGroup = (signMap: (0 | 1 | -1)[][], x: number, y: number, color: 1 | -1): void => {
+				if (x < 0 || y < 0 || x >= boardSize || y >= boardSize) return;
+				if (signMap[y][x] !== color) return;
+
+				signMap[y][x] = 0;
+
+				removeGroup(signMap, x + 1, y, color);
+				removeGroup(signMap, x - 1, y, color);
+				removeGroup(signMap, x, y + 1, color);
+				removeGroup(signMap, x, y - 1, color);
+			};
+
+			// Helper function to remove captured stones after a move
+			const removeCapturedStones = (signMap: (0 | 1 | -1)[][], lastX: number, lastY: number, lastColor: 1 | -1): void => {
+				const opponentColor = lastColor === 1 ? -1 : 1;
+
+				// Check all four neighbors of the last move
+				const neighbors = [
+					{x: lastX + 1, y: lastY},
+					{x: lastX - 1, y: lastY},
+					{x: lastX, y: lastY + 1},
+					{x: lastX, y: lastY - 1}
+				];
+
+				for (const neighbor of neighbors) {
+					if (neighbor.x >= 0 && neighbor.y >= 0 &&
+					    neighbor.x < boardSize && neighbor.y < boardSize &&
+					    signMap[neighbor.y][neighbor.x] === opponentColor) {
+
+						const visited: boolean[][] = [];
+						for (let i = 0; i < boardSize; i++) {
+							visited[i] = new Array(boardSize).fill(false);
+						}
+
+						// If this opponent group has no liberties, remove it
+						if (!hasLiberties(signMap, neighbor.x, neighbor.y, opponentColor, visited)) {
+							removeGroup(signMap, neighbor.x, neighbor.y, opponentColor);
+						}
+					}
+				}
+			};
+
+			// Function to get board state at current move
+			const getBoardState = (): (0 | 1 | -1)[][] => {
+				// Initialize empty board as 2D array
+				const signMap: (0 | 1 | -1)[][] = [];
+				for (let i = 0; i < boardSize; i++) {
+					signMap[i] = [];
+					for (let j = 0; j < boardSize; j++) {
+						signMap[i][j] = 0;
+					}
+				}
+
+				// Process root node setup stones (AB/AW)
+				const rootData = rootNode?.data || {};
+
+				// AB - Add Black stones (setup)
+				if (rootData.AB) {
+					const blackStones = Array.isArray(rootData.AB) ? rootData.AB : [rootData.AB];
+					blackStones.forEach((point: string) => {
+						const coords = this.point2vertex(point);
+						if (coords.x >= 0 && coords.y >= 0 && coords.x < boardSize && coords.y < boardSize) {
+							signMap[coords.y][coords.x] = 1;
+						}
+					});
+				}
+
+				// AW - Add White stones (setup)
+				if (rootData.AW) {
+					const whiteStones = Array.isArray(rootData.AW) ? rootData.AW : [rootData.AW];
+					whiteStones.forEach((point: string) => {
+						const coords = this.point2vertex(point);
+						if (coords.x >= 0 && coords.y >= 0 && coords.x < boardSize && coords.y < boardSize) {
+							signMap[coords.y][coords.x] = -1;
+						}
+					});
+				}
+
+				// AE - Add Empty (remove stones in setup)
+				if (rootData.AE) {
+					const emptyPoints = Array.isArray(rootData.AE) ? rootData.AE : [rootData.AE];
+					emptyPoints.forEach((point: string) => {
+						const coords = this.point2vertex(point);
+						if (coords.x >= 0 && coords.y >= 0 && coords.x < boardSize && coords.y < boardSize) {
+							signMap[coords.y][coords.x] = 0;
+						}
+					});
+				}
+
+				if (!allMoves || !Array.isArray(allMoves)) {
+					return signMap;
+				}
+
+				// moveNumber 0 = no moves, 1 = first move, etc.
+				// So we render moves from index 0 to moveNumber-1
+				for (let i = 0; i < moveNumber && i < allMoves.length; i++) {
+					const moveNode = allMoves[i];
+					if (!moveNode || !moveNode.node) continue;
+
+					const data = moveNode.node.data || {};
+
+					// Regular moves (B/W)
+					const move = data.B || data.W;
+					const color: 1 | -1 = data.B ? 1 : -1;
+
+					if (move && Array.isArray(move) && move[0] && move[0] !== '') {
+						const coords = this.point2vertex(move[0]);
+						console.log(`Move ${i}: SGF=${move[0]}, coords=(x=${coords.x}, y=${coords.y}), signMap[${coords.y}][${coords.x}], color=${color}`);
+						if (coords.x >= 0 && coords.y >= 0 && coords.x < boardSize && coords.y < boardSize) {
+							signMap[coords.y][coords.x] = color;
+
+							// Remove any captured stones after this move
+							removeCapturedStones(signMap, coords.x, coords.y, color);
+						}
+					}
+
+					// Setup stones in move nodes (AB/AW/AE)
+					if (data.AB) {
+						const blackStones = Array.isArray(data.AB) ? data.AB : [data.AB];
+						blackStones.forEach((point: string) => {
+							const coords = this.point2vertex(point);
+							if (coords.x >= 0 && coords.y >= 0 && coords.x < boardSize && coords.y < boardSize) {
+								signMap[coords.y][coords.x] = 1;
+							}
+						});
+					}
+
+					if (data.AW) {
+						const whiteStones = Array.isArray(data.AW) ? data.AW : [data.AW];
+						whiteStones.forEach((point: string) => {
+							const coords = this.point2vertex(point);
+							if (coords.x >= 0 && coords.y >= 0 && coords.x < boardSize && coords.y < boardSize) {
+								signMap[coords.y][coords.x] = -1;
+							}
+						});
+					}
+
+					if (data.AE) {
+						const emptyPoints = Array.isArray(data.AE) ? data.AE : [data.AE];
+						emptyPoints.forEach((point: string) => {
+							const coords = this.point2vertex(point);
+							if (coords.x >= 0 && coords.y >= 0 && coords.x < boardSize && coords.y < boardSize) {
+								signMap[coords.y][coords.x] = 0;
+							}
+						});
+					}
+				}
+
+				return signMap;
+			};
+
+			// Track if zoom has been applied
+			let zoomApplied = false;
+
+			// Render function
+			const renderBoard = () => {
+				const signMap = getBoardState();
+
+				console.log('Rendering board at move:', moveNumber);
+				console.log('SignMap:', signMap);
+				console.log('Board size:', boardSize);
+
+				// Get comment from the last displayed move
+				let comment = '';
+				let hasVariations = false;
+
+				if (moveNumber === 0) {
+					// Show root node comment if any
+					const rootData = rootNode ? (rootNode.data || {}) : {};
+					comment = rootData.C ? rootData.C[0] : '';
+					// Check if root has variations
+					hasVariations = rootNode && rootNode.children && rootNode.children.length > 1;
+				} else if (allMoves && moveNumber > 0 && moveNumber <= allMoves.length) {
+					// Show comment from the last displayed move
+					const moveNode = allMoves[moveNumber - 1];
+					const data = moveNode.node ? (moveNode.node.data || {}) : {};
+					comment = data.C ? data.C[0] : '';
+
+					// Check if this move has variations
+					hasVariations = moveNode.node && moveNode.node.children && moveNode.node.children.length > 1;
+				}
+
+				// Render Goban
+				// Get SGF markers for current position
+				const markerMap = getSGFMarkers();
+
+				// Create empty paint map
+				const emptyPaintMap: (0 | 1 | -1)[][] = [];
+				for (let i = 0; i < boardSize; i++) {
+					emptyPaintMap[i] = new Array(boardSize).fill(0) as (0 | 1 | -1)[];
+				}
+
+				// Log the props being passed to Goban
+				const gobanProps = {
+					vertexSize: calculatedVertexSize,
+					signMap,
+					dimmedVertices: [],
+					markerMap: markerMap,
+					paintMap: emptyPaintMap,
+					showCoordinates: true,
+					busy: false,
+					fuzzyStonePlacement: false,
+					animateStonePlacement: false
+				};
+
+				console.log('Goban props:', gobanProps);
+
+				// @ts-ignore
+				render(
+					h(Goban, gobanProps),
+					boardContainer
+				);
+
+				// Apply CSS zoom to fit the board in available space (only once)
+				if (!zoomApplied) {
+					const applyZoom = () => {
+						const gobanElement = boardContainer.querySelector('.shudan-goban') as HTMLElement;
+						if (!gobanElement) return;
+
+						// Reset zoom to get natural size
+						(gobanElement.style as any).zoom = '1';
+
+						// Force layout
+						gobanElement.offsetHeight;
+
+						// Get the natural rendered size
+						const naturalWidth = gobanElement.scrollWidth || gobanElement.offsetWidth;
+						const naturalHeight = gobanElement.scrollHeight || gobanElement.offsetHeight;
+
+						// Get available width
+						const availableWidth = containerWidth - 32;
+
+						console.log('Natural board size:', naturalWidth, 'x', naturalHeight, 'Available width:', availableWidth, 'Container width:', containerWidth);
+
+						// Calculate zoom
+						if (naturalWidth > availableWidth) {
+							const zoomFactor = availableWidth / naturalWidth;
+							console.log('Board too wide! Applying zoom factor:', zoomFactor);
+
+							(gobanElement.style as any).zoom = `${zoomFactor}`;
+						} else {
+							console.log('Board fits naturally, no zoom needed');
+							(gobanElement.style as any).zoom = '1';
+						}
+
+						zoomApplied = true;
+					};
+
+					setTimeout(applyZoom, 100);
+				}
+
+				// Mark variation labels with a special class for blue styling
+				setTimeout(() => {
+					// Find all variation markers
+					let variationSource = null;
+					if (moveNumber === 0) {
+						variationSource = rootNode;
+					} else if (moveNumber > 0 && moveNumber <= allMoves.length) {
+						variationSource = allMoves[moveNumber - 1].node;
+					}
+
+					if (variationSource && variationSource.children && variationSource.children.length > 1) {
+						variationSource.children.forEach((variation: any, index: number) => {
+							const firstMove = variation.data?.B || variation.data?.W;
+							if (firstMove && Array.isArray(firstMove) && firstMove[0]) {
+								const coords = this.point2vertex(firstMove[0]);
+								if (coords.x >= 0 && coords.y >= 0 && coords.x < boardSize && coords.y < boardSize) {
+									// Find the marker element at this position
+									const vertices = boardContainer.querySelectorAll('.shudan-vertex');
+									const targetIndex = coords.y * boardSize + coords.x;
+									if (vertices[targetIndex]) {
+										const marker = vertices[targetIndex].querySelector('.shudan-marker');
+										if (marker) {
+											marker.classList.add('variation-marker');
+										}
+									}
+								}
+							}
+						});
+					}
+				}, 10);
+
+				// Update info display
+				const totalMoves = allMoves ? allMoves.length : 0;
+				const variationInfo = hasVariations ? ' <span class="variation-indicator">(has variations)</span>' : '';
+				const infoHtml = `
+					<div class="goboard-info">
+						<div><strong>Move:</strong> ${moveNumber} / ${totalMoves}${variationInfo}</div>
+						${comment ? `<div class="goboard-comment">${comment}</div>` : ''}
+					</div>
+				`;
+
+				const existingInfo = controlsContainer.querySelector('.goboard-info');
+				if (existingInfo) {
+					existingInfo.outerHTML = infoHtml;
+				} else {
+					controlsContainer.insertAdjacentHTML('afterbegin', infoHtml);
+				}
+
+				// Update variation selection UI
+				let variationContainer = controlsContainer.querySelector('.goboard-variations');
+
+				// Remove existing variation container if present
+				if (variationContainer) {
+					variationContainer.remove();
+				}
+
+				// Add variation selection buttons if current position has variations
+				if (hasVariations) {
+					let variations = [];
+					let pathIndex = -1;
+
+					if (moveNumber === 0) {
+						// Root node variations
+						variations = rootNode?.children || [];
+						pathIndex = -1; // Root variations don't use path index
+					} else if (moveNumber > 0 && moveNumber <= allMoves.length) {
+						// Move node variations
+						const moveNode = allMoves[moveNumber - 1];
+						variations = moveNode.node?.children || [];
+						pathIndex = moveNumber - 1;
+					}
+
+					if (variations.length > 1) {
+						variationContainer = document.createElement('div');
+						variationContainer.className = 'goboard-variations';
+
+						const label = document.createElement('div');
+						label.className = 'goboard-variations-label';
+						label.textContent = 'Select variation:';
+						variationContainer.appendChild(label);
+
+						const btnGroup = document.createElement('div');
+						btnGroup.className = 'goboard-variations-buttons';
+
+						// Get current selected variation for this position
+						const currentVariationIndex = moveNumber === 0 ? rootVariationIndex : (pathIndex >= 0 ? (currentVariationPath[pathIndex] || 0) : 0);
+
+						variations.forEach((_: any, index: number) => {
+							const btn = document.createElement('button');
+							btn.className = 'goboard-variation-btn';
+							if (index === currentVariationIndex) {
+								btn.className += ' selected';
+							}
+							btn.textContent = String.fromCharCode(65 + index); // A, B, C, ...
+							btn.onclick = () => {
+								if (moveNumber === 0) {
+									// Root variation selection
+									rootVariationIndex = index;
+									currentVariationPath = []; // Reset path
+									moveNumber = 0; // Stay at move 0
+								} else if (pathIndex >= 0) {
+									// Regular move variation selection
+									currentVariationPath[pathIndex] = index;
+								}
+
+								// Rebuild move tree from this point
+								rebuildMoveTree();
+
+								// Re-render the board
+								renderBoard();
+							};
+							btnGroup.appendChild(btn);
+						});
+
+						variationContainer.appendChild(btnGroup);
+						controlsContainer.insertBefore(variationContainer, controlsContainer.querySelector('.goboard-btn-group'));
+					}
+				}
+			};
+
+			// Create control buttons
+			const createButton = (text: string, onClick: () => void) => {
+				const btn = document.createElement('button');
+				btn.className = 'goboard-btn';
+				btn.textContent = text;
+				btn.onclick = () => {
+					onClick();
+					renderBoard();
+				};
+				return btn;
+			};
+
+			const btnFirst = createButton('⏮ First', () => {
+				moveNumber = 0;
+			});
+
+			const btnPrev = createButton('◀ Prev', () => {
+				if (moveNumber > 0) moveNumber--;
+			});
+
+			const btnNext = createButton('▶ Next', () => {
+				const totalMoves = allMoves ? allMoves.length : 0;
+				if (moveNumber < totalMoves) moveNumber++;
+			});
+
+			const btnLast = createButton('⏭ Last', () => {
+				moveNumber = allMoves ? allMoves.length : 0;
+			});
+
+			const btnContainer = document.createElement('div');
+			btnContainer.className = 'goboard-btn-group';
+			btnContainer.appendChild(btnFirst);
+			btnContainer.appendChild(btnPrev);
+			btnContainer.appendChild(btnNext);
+			btnContainer.appendChild(btnLast);
+
+			controlsContainer.appendChild(btnContainer);
+
+			// Initial render
+			renderBoard();
+
+			// Add resize listener for responsive behavior
+			let resizeTimeout: any;
+			const resizeObserver = new ResizeObserver(() => {
+				// Debounce resize events
+				clearTimeout(resizeTimeout);
+				resizeTimeout = setTimeout(() => {
+					const gobanElement = boardContainer.querySelector('.shudan-goban') as HTMLElement;
+					if (!gobanElement) return;
+
+					// Recalculate container width
+					const parentElement = container.parentElement;
+					let availableContainerWidth = 700;
+
+					if (parentElement) {
+						const parentWidth = parentElement.clientWidth || parentElement.offsetWidth;
+						if (parentWidth > 0) {
+							availableContainerWidth = parentWidth;
+						}
+					}
+
+					if (availableContainerWidth === 700) {
+						const viewportWidth = window.innerWidth || document.documentElement.clientWidth;
+						const estimatedSidebarWidth = viewportWidth < 768 ? 0 : 350;
+						availableContainerWidth = Math.max(300, viewportWidth - estimatedSidebarWidth - 40);
+					}
+
+					const newContainerWidth = Math.min(availableContainerWidth, 700);
+
+					// Reset and remeasure
+					(gobanElement.style as any).zoom = '1';
+					gobanElement.offsetHeight; // Force layout
+
+					const naturalWidth = gobanElement.scrollWidth || gobanElement.offsetWidth;
+					const newAvailableWidth = newContainerWidth - 32;
+
+					if (naturalWidth > newAvailableWidth) {
+						const zoomFactor = newAvailableWidth / naturalWidth;
+						(gobanElement.style as any).zoom = `${zoomFactor}`;
+					} else {
+						(gobanElement.style as any).zoom = '1';
+					}
+				}, 100);
+			});
+
+			// Observe the wrapper for size changes
+			resizeObserver.observe(wrapper);
+
+		} catch (error: any) {
+			console.error('Error rendering Go board:', error);
+			const errorDiv = document.createElement('div');
+			errorDiv.className = 'goboard-error';
+			errorDiv.textContent = 'Error rendering Go board: ' + (error?.message || 'Unknown error');
+			container.appendChild(errorDiv);
+		}
+	}
+}

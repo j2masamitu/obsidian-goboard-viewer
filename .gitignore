@@ -1,0 +1,20 @@
+# npm
+node_modules
+package-lock.json
+
+# build
+main.js
+*.js.map
+
+# obsidian
+data.json
+
+# misc
+.DS_Store
+
+# editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~

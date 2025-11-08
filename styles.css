@@ -1,0 +1,457 @@
+/* Go Board Viewer Plugin Styles - Sabaki Version */
+
+.goboard-container {
+  margin: 1em 0;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.goboard-wrapper {
+  max-width: 100%;
+  width: 100%;
+  max-width: 700px;
+  background: var(--background-primary);
+  border-radius: 8px;
+  padding: 1em;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  box-sizing: border-box;
+}
+
+/* Game Information Section */
+.goboard-game-info {
+  background: var(--background-secondary);
+  padding: 1em;
+  border-radius: 6px;
+  margin-bottom: 1em;
+  border-left: 4px solid var(--interactive-accent);
+}
+
+.game-info-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-normal);
+  margin-bottom: 0.5em;
+}
+
+.game-info-event {
+  font-size: 14px;
+  color: var(--text-muted);
+  margin-bottom: 0.75em;
+  font-style: italic;
+}
+
+.game-info-players {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-normal);
+  margin-bottom: 0.5em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5em;
+}
+
+.player-black {
+  color: var(--text-normal);
+}
+
+.player-white {
+  color: var(--text-normal);
+}
+
+.game-info-details {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 0.5em;
+  padding-top: 0.5em;
+  border-top: 1px solid var(--background-modifier-border);
+}
+
+.goboard-display {
+  margin-bottom: 1em;
+  display: flex;
+  justify-content: flex-start;
+  overflow: visible;
+  width: 100%;
+  position: relative;
+}
+
+/* Sabaki Goban styles */
+.goboard-display .shudan-goban {
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  background: #FFFFFF;
+  transform-origin: top left;
+}
+
+.goboard-display .shudan-vertex {
+  cursor: default;
+  position: relative;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+/* Stone image container - this is where the text is */
+.goboard-display .shudan-stone-image {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  border-radius: 50% !important;
+  overflow: visible !important;
+  /* Hide the text content (-1, 1, 0) */
+  font-size: 0 !important;
+  color: transparent !important;
+  text-indent: -9999px;
+  line-height: 0;
+  z-index: 1 !important;
+}
+
+/* Black stones - using the actual class names from shudan */
+.goboard-display .shudan-sign_1,
+.goboard-display .shudan-stone-image.shudan-sign_1 {
+  border-radius: 50% !important;
+  background: radial-gradient(circle at 30% 30%, #666, #111, #000) !important;
+  box-shadow:
+    inset -2px -2px 4px rgba(255, 255, 255, 0.1),
+    0 2px 4px rgba(0, 0, 0, 0.5) !important;
+}
+
+/* White stones - using the actual class names from shudan */
+.goboard-display .shudan-sign_-1,
+.goboard-display .shudan-stone-image.shudan-sign_-1 {
+  border-radius: 50% !important;
+  background: radial-gradient(circle at 30% 30%, #fff, #f5f5f5, #ddd) !important;
+  box-shadow:
+    inset -1px -1px 2px rgba(0, 0, 0, 0.1),
+    0 2px 4px rgba(0, 0, 0, 0.3) !important;
+  border: 1px solid rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Force all shudan elements to be circular */
+.goboard-display .shudan-inner {
+  border-radius: 50% !important;
+}
+
+/* More specific selectors for all stone-related elements */
+.goboard-display [class*="shudan-sign"] {
+  border-radius: 50% !important;
+}
+
+.goboard-display .shudan-inner.shudan-stone-image {
+  border-radius: 50% !important;
+}
+
+/* Markers on the board */
+.goboard-display .shudan-marker {
+  pointer-events: none;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 100% !important;
+  height: 100% !important;
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  text-align: center !important;
+  z-index: 10 !important;
+  font-size: 0 !important; /* Hide any default content */
+  color: transparent !important; /* Hide text color */
+  text-indent: -9999px !important; /* Move text off-screen */
+}
+
+/* Hide any child elements inside markers (shudan library default rendering) */
+.goboard-display .shudan-marker > * {
+  display: none !important;
+}
+
+/* Reset text properties for ::before pseudo-elements */
+.goboard-display .shudan-marker::before {
+  text-indent: 0 !important;
+  color: inherit !important;
+  font-size: inherit !important;
+  display: inline-block !important;
+}
+
+/* Label markers - default red - with multiple selectors */
+.goboard-display .shudan-marker.shudan-label,
+.goboard-display [class*="shudan-marker"][class*="label"],
+.goboard-display .shudan-marker[data-type="label"],
+.goboard-display .shudan-vertex .shudan-marker {
+  font-size: 22px !important;
+  font-weight: bold !important;
+  font-family: 'Arial', 'Helvetica', sans-serif !important;
+  color: #FF0000 !important;
+}
+
+/* Label markers on stones - also red */
+.goboard-display .shudan-sign_1 .shudan-marker.shudan-label,
+.goboard-display .shudan-sign_-1 .shudan-marker.shudan-label {
+  color: #FF0000 !important;
+  font-size: 20px !important;
+}
+
+/* Variation markers (A, B, C single letters) - blue */
+.goboard-display .shudan-marker.variation-marker {
+  color: #2196F3 !important;
+}
+
+.goboard-display .shudan-sign_1 .shudan-marker.variation-marker,
+.goboard-display .shudan-sign_-1 .shudan-marker.variation-marker {
+  color: #2196F3 !important;
+}
+
+
+/* Circle marker (CR) - red */
+.goboard-display .shudan-marker.shudan-circle::before,
+.goboard-display [class*="shudan-marker"][class*="circle"]::before {
+  content: '○' !important;
+  font-size: 22px !important;
+  color: #FF0000 !important;
+  font-weight: bold !important;
+  line-height: 1 !important;
+}
+
+.goboard-display .shudan-sign_1 .shudan-marker.shudan-circle::before,
+.goboard-display .shudan-sign_-1 .shudan-marker.shudan-circle::before,
+.goboard-display .shudan-sign_1 [class*="circle"]::before,
+.goboard-display .shudan-sign_-1 [class*="circle"]::before {
+  color: #FF0000 !important;
+}
+
+/* Square marker (SQ) - red */
+.goboard-display .shudan-marker.shudan-square::before,
+.goboard-display [class*="shudan-marker"][class*="square"]::before {
+  content: '□' !important;
+  font-size: 22px !important;
+  color: #FF0000 !important;
+  font-weight: bold !important;
+  line-height: 1 !important;
+}
+
+.goboard-display .shudan-sign_1 .shudan-marker.shudan-square::before,
+.goboard-display .shudan-sign_-1 .shudan-marker.shudan-square::before,
+.goboard-display .shudan-sign_1 [class*="square"]::before,
+.goboard-display .shudan-sign_-1 [class*="square"]::before {
+  color: #FF0000 !important;
+}
+
+/* Triangle marker (TR) - red */
+.goboard-display .shudan-marker.shudan-triangle::before,
+.goboard-display [class*="shudan-marker"][class*="triangle"]::before {
+  content: '△' !important;
+  font-size: 22px !important;
+  color: #FF0000 !important;
+  font-weight: bold !important;
+  line-height: 1 !important;
+}
+
+.goboard-display .shudan-sign_1 .shudan-marker.shudan-triangle::before,
+.goboard-display .shudan-sign_-1 .shudan-marker.shudan-triangle::before,
+.goboard-display .shudan-sign_1 [class*="triangle"]::before,
+.goboard-display .shudan-sign_-1 [class*="triangle"]::before {
+  color: #FF0000 !important;
+}
+
+/* Point marker (MA - X mark) - red */
+.goboard-display .shudan-marker.shudan-point::before,
+.goboard-display [class*="shudan-marker"][class*="point"]::before {
+  content: '✕' !important;
+  font-size: 22px !important;
+  color: #FF0000 !important;
+  font-weight: bold !important;
+  line-height: 1 !important;
+}
+
+.goboard-display .shudan-sign_1 .shudan-marker.shudan-point::before,
+.goboard-display .shudan-sign_-1 .shudan-marker.shudan-point::before,
+.goboard-display .shudan-sign_1 [class*="point"]::before,
+.goboard-display .shudan-sign_-1 [class*="point"]::before {
+  color: #FF0000 !important;
+}
+
+/* Cross marker (alternative) */
+.goboard-display .shudan-marker.shudan-cross::before {
+  content: '✕';
+  font-size: 28px;
+  font-weight: bold;
+  color: #F44336;
+  text-shadow:
+    -2px -2px 3px white,
+    2px -2px 3px white,
+    -2px 2px 3px white,
+    2px 2px 3px white;
+}
+
+.goboard-display .shudan-sign_1 .shudan-marker.shudan-cross::before {
+  color: white;
+  text-shadow: none;
+}
+
+.goboard-display .shudan-sign_-1 .shudan-marker.shudan-cross::before {
+  color: black;
+  text-shadow: none;
+}
+
+/* Controls section */
+.goboard-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 1em;
+}
+
+.goboard-info {
+  background: var(--background-secondary);
+  padding: 0.75em;
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+.goboard-info div {
+  margin: 0.25em 0;
+}
+
+.goboard-info .variation-indicator {
+  color: var(--text-accent);
+  font-size: 0.9em;
+  font-style: italic;
+}
+
+.goboard-comment {
+  margin-top: 0.5em;
+  padding: 0.5em;
+  background: var(--background-primary);
+  border-left: 3px solid var(--interactive-accent);
+  border-radius: 2px;
+  font-style: italic;
+  color: var(--text-muted);
+}
+
+.goboard-variations {
+  background: var(--background-secondary);
+  padding: 0.75em;
+  border-radius: 4px;
+  margin-bottom: 0.75em;
+}
+
+.goboard-variations-label {
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 0.5em;
+  color: var(--text-muted);
+}
+
+.goboard-variations-buttons {
+  display: flex;
+  gap: 0.5em;
+  flex-wrap: wrap;
+}
+
+.goboard-variation-btn {
+  background: var(--interactive-normal);
+  color: var(--text-normal);
+  border: 1px solid var(--background-modifier-border);
+  padding: 0.4em 0.8em;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.2s;
+  min-width: 32px;
+}
+
+.goboard-variation-btn:hover {
+  background: var(--interactive-hover);
+}
+
+.goboard-variation-btn.selected {
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  border-color: var(--interactive-accent);
+  font-weight: 600;
+}
+
+.goboard-btn-group {
+  display: flex;
+  gap: 0.5em;
+  justify-content: center;
+}
+
+.goboard-btn {
+  background: var(--interactive-normal);
+  color: var(--text-normal);
+  border: 1px solid var(--background-modifier-border);
+  padding: 0.5em 1em;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: background 0.2s;
+}
+
+.goboard-btn:hover {
+  background: var(--interactive-hover);
+}
+
+.goboard-btn:active {
+  background: var(--interactive-accent);
+  transform: translateY(1px);
+}
+
+.goboard-error {
+  color: var(--text-error);
+  padding: 1em;
+  background: var(--background-secondary);
+  border: 1px solid var(--text-error);
+  border-radius: 4px;
+  margin: 1em 0;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .goboard-container {
+    margin: 0.5em 0;
+  }
+
+  .goboard-wrapper {
+    width: 100%;
+    padding: 0.5em;
+    max-width: 100%;
+  }
+
+  .goboard-display {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .goboard-btn-group {
+    flex-wrap: wrap;
+    gap: 0.3em;
+  }
+
+  .goboard-btn {
+    flex: 1 1 45%;
+    padding: 0.6em 0.5em;
+    font-size: 13px;
+  }
+
+  .game-info-title {
+    font-size: 16px;
+  }
+
+  .game-info-players {
+    font-size: 14px;
+    flex-direction: column;
+    gap: 0.3em;
+  }
+
+  .game-info-details {
+    font-size: 11px;
+  }
+}
+
+/* Dark mode adjustments */
+.theme-dark .goboard-display .shudan-goban {
+  background: #FFFFFF;
+}

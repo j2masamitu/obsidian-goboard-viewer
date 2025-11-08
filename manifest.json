@@ -1,0 +1,10 @@
+{
+  "id": "obsidian-goboard-viewer",
+  "name": "Go Board Viewer",
+  "version": "1.0.0",
+  "minAppVersion": "0.15.0",
+  "description": "Display SGF (Smart Game Format) files and code blocks as interactive Go boards with playback controls, variations, and markers",
+  "author": "j2masamitu",
+  "authorUrl": "https://github.com/j2masamitu",
+  "isDesktopOnly": false
+}
