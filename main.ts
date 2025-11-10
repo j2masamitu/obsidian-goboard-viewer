@@ -529,10 +529,10 @@ export default class GoBoardViewerPlugin extends Plugin {
 					const blackRank = gameInfo.blackRank ? ` (${gameInfo.blackRank})` : '';
 					const whiteRank = gameInfo.whiteRank ? ` (${gameInfo.whiteRank})` : '';
 
-					const blackSpan = playersEl.createSpan({ cls: 'player-black' });
+					const blackSpan = playersEl.createSpan({ cls: 'player-black' })
 					blackSpan.textContent = `⚫ ${blackName}${blackRank}`;
 					playersEl.appendText(' vs ');
-					const whiteSpan = playersEl.createSpan({ cls: 'player-white' });
+					const whiteSpan = playersEl.createSpan({ cls: 'player-white' })
 					whiteSpan.textContent = `⚪ ${whiteName}${whiteRank}`;
 					infoSection.appendChild(playersEl);
 				}
@@ -988,7 +988,7 @@ export default class GoBoardViewerPlugin extends Plugin {
 						if (!gobanElement) return;
 
 						// Reset zoom to get natural size
-						gobanElement.style.setProperty('zoom', '1');
+						gobanElement.setCssProps({ zoom: '1' })
 
 						// Force layout (accessing offsetHeight triggers layout)
 						void gobanElement.offsetHeight;
@@ -1007,10 +1007,10 @@ export default class GoBoardViewerPlugin extends Plugin {
 							const zoomFactor = availableWidth / naturalWidth;
 							console.debug('Board too wide! Applying zoom factor:', zoomFactor);
 
-							gobanElement.style.setProperty('zoom', `${zoomFactor}`);
+							gobanElement.setCssProps({ zoom: `${zoomFactor}` })
 						} else {
 							console.debug('Board fits naturally, no zoom needed');
-							gobanElement.style.setProperty('zoom', '1');
+							gobanElement.setCssProps({ zoom: '1' })
 						}
 
 						zoomApplied = true;
@@ -1058,19 +1058,19 @@ export default class GoBoardViewerPlugin extends Plugin {
 					existingInfo.remove();
 				}
 
-				const infoDiv = controlsContainer.createDiv({ cls: 'goboard-info' });
+				const infoDiv = controlsContainer.createDiv({ cls: 'goboard-info' })
 				const moveDiv = infoDiv.createDiv();
 				const moveLabelStrong = moveDiv.createEl('strong');
 				moveLabelStrong.textContent = 'Move:';
 				moveDiv.appendText(` ${moveNumber} / ${totalMoves}`);
 
 				if (hasVariations) {
-					const variationSpan = moveDiv.createSpan({ cls: 'variation-indicator' });
+					const variationSpan = moveDiv.createSpan({ cls: 'variation-indicator' })
 					variationSpan.textContent = '(has variations)';
 				}
 
 				if (comment) {
-					const commentDiv = infoDiv.createDiv({ cls: 'goboard-comment' });
+					const commentDiv = infoDiv.createDiv({ cls: 'goboard-comment' })
 					commentDiv.textContent = comment;
 				}
 
@@ -1218,7 +1218,7 @@ export default class GoBoardViewerPlugin extends Plugin {
 					const newContainerWidth = Math.min(availableContainerWidth, 700);
 
 					// Reset and remeasure
-					gobanElement.style.setProperty('zoom', '1');
+					gobanElement.setCssProps({ zoom: '1' })
 					// Force layout (accessing offsetHeight triggers layout)
 					void gobanElement.offsetHeight;
 
@@ -1227,9 +1227,9 @@ export default class GoBoardViewerPlugin extends Plugin {
 
 					if (naturalWidth > newAvailableWidth) {
 						const zoomFactor = newAvailableWidth / naturalWidth;
-						gobanElement.style.setProperty('zoom', `${zoomFactor}`);
+						gobanElement.setCssProps({ zoom: `${zoomFactor}` })
 					} else {
-						gobanElement.style.setProperty('zoom', '1');
+						gobanElement.setCssProps({ zoom: '1' })
 					}
 				}, 100);
 			});
