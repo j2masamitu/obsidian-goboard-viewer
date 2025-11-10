@@ -5,6 +5,38 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.2] - 2025-11-10
+
+### Fixed
+- Code quality improvements for Obsidian plugin review
+- Replaced all `innerHTML`, `outerHTML`, and `insertAdjacentHTML` with safe DOM API methods
+- Changed all `console.log` to `console.debug` (only warn/error/debug allowed)
+- Fixed async/await issues (removed unnecessary async, proper Promise handling)
+- Replaced all `any` types with proper TypeScript types
+- Removed unused variables
+- Fixed expression statements
+
+## [1.1.1] - 2025-11-10
+
+### Changed
+- Updated plugin description to match Community Plugins submission requirements
+- Description now: "Displays Go (Weiqi/Baduk) SGF files and code blocks as interactive Go boards with playback controls for desktop and mobile."
+
+## [1.1.0] - 2025-11-10
+
+### Changed
+- **BREAKING CHANGE**: Plugin ID changed from `obsidian-goboard-viewer` to `goboard-viewer`
+- Installation path changed to `.obsidian/plugins/goboard-viewer/`
+- Updated all documentation to reflect new plugin ID
+- This change is required for Obsidian Community Plugins submission
+
+### Migration for Existing Users
+- Disable old plugin in Obsidian Settings
+- Delete `.obsidian/plugins/obsidian-goboard-viewer/` folder
+- Download version 1.1.0 or later
+- Extract to `.obsidian/plugins/goboard-viewer/`
+- Enable plugin in Obsidian Settings
+
 ## [1.0.0] - 2025-11-08
 
 ### Added
