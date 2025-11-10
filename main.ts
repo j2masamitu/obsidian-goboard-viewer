@@ -4,6 +4,23 @@ import { Goban } from '@sabaki/shudan';
 // @ts-ignore
 import * as sgf from '@sabaki/sgf';
 
+// Type definitions for SGF library
+interface SGFNode {
+	data?: Record<string, string[]>;
+	children?: SGFNode[];
+}
+
+interface SGFGameTree {
+	root?: SGFNode;
+	data?: Record<string, string[]>;
+	children?: SGFNode[];
+}
+
+interface MarkerData {
+	type: "label" | "circle" | "cross" | "triangle" | "square" | "point" | "loader" | null | undefined;
+	label?: string;
+}
+
 // View for displaying SGF files
 class SGFView extends FileView {
 	plugin: GoBoardViewerPlugin;
@@ -22,7 +39,7 @@ class SGFView extends FileView {
 	}
 
 	async onLoadFile(file: TFile): Promise<void> {
-		console.log('SGFView: Loading file:', file.path);
+		console.debug('SGFView: Loading file:', file.path);
 		const content = await this.app.vault.read(file);
 
 		// Clear container
@@ -36,6 +53,7 @@ class SGFView extends FileView {
 	async onUnloadFile(file: TFile): Promise<void> {
 		// Clear the view
 		this.contentEl.empty();
+		// No async operations needed, but method must be async to match base class
 	}
 }
 
@@ -57,8 +75,8 @@ export default class GoBoardViewerPlugin extends Plugin {
 		return { x, y };
 	}
 
-	async onload() {
-		console.log('Loading Go Board Viewer plugin (Sabaki version)');
+	onload() {
+		console.debug('Loading Go Board Viewer plugin (Sabaki version)');
 
 		// Register markdown code block processor for SGF (both lowercase and uppercase)
 		this.registerMarkdownCodeBlockProcessor('sgf', this.processSGFCodeBlock.bind(this));
@@ -82,11 +100,11 @@ export default class GoBoardViewerPlugin extends Plugin {
 		// Initial processing
 		setTimeout(() => this.processSGFEmbeds(), 1000);
 
-		console.log('Go Board Viewer plugin loaded');
+		console.debug('Go Board Viewer plugin loaded');
 	}
 
 	setupMutationObserver() {
-		console.log('Setting up MutationObserver for SGF embeds');
+		console.debug('Setting up MutationObserver for SGF embeds');
 
 		// Create observer to watch for new elements
 		this.mutationObserver = new MutationObserver((mutations) => {
@@ -98,17 +116,13 @@ export default class GoBoardViewerPlugin extends Plugin {
 					if (node.nodeType === Node.ELEMENT_NODE) {
 						const element = node as HTMLElement;
 
-						// Check for .sgf in src or alt attributes
-						const src = element.getAttribute('src');
-						const alt = element.getAttribute('alt');
-
 						// Skip verbose logging - only log if actually processing
 
 						// Check if this element itself is an SGF embed
 						if (element.classList.contains('internal-embed')) {
 							const embedSrc = element.getAttribute('src') || element.getAttribute('alt');
 							if (embedSrc && embedSrc.toLowerCase().endsWith('.sgf')) {
-								this.processSGFEmbed(element);
+								this.processSGFEmbed(element).catch(console.error);
 							}
 						}
 
@@ -119,7 +133,7 @@ export default class GoBoardViewerPlugin extends Plugin {
 								const el = embed as HTMLElement;
 								const embedSrc = el.getAttribute('src') || el.getAttribute('alt');
 								if (embedSrc && embedSrc.toLowerCase().endsWith('.sgf')) {
-									this.processSGFEmbed(el);
+									this.processSGFEmbed(el).catch(console.error);
 								}
 							});
 						}
@@ -134,7 +148,7 @@ export default class GoBoardViewerPlugin extends Plugin {
 			subtree: true
 		});
 
-		console.log('MutationObserver started');
+		console.debug('MutationObserver started');
 	}
 
 	async processSGFEmbed(embed: HTMLElement) {
@@ -174,13 +188,13 @@ export default class GoBoardViewerPlugin extends Plugin {
 
 	// Process all SGF embeds in the current workspace
 	async processSGFEmbeds() {
-		console.log('Processing SGF embeds in document');
+		console.debug('Processing SGF embeds in document');
 
 		// Debug: Log all .internal-embed elements
 		const allEmbeds = document.querySelectorAll('.internal-embed');
-		console.log('Total .internal-embed elements found:', allEmbeds.length);
+		console.debug('Total .internal-embed elements found:', allEmbeds.length);
 		allEmbeds.forEach((el, idx) => {
-			console.log(`Embed ${idx}:`, {
+			console.debug(`Embed ${idx}:`, {
 				tagName: el.tagName,
 				className: el.className,
 				src: el.getAttribute('src'),
@@ -194,55 +208,55 @@ export default class GoBoardViewerPlugin extends Plugin {
 
 		// Try to find in preview/reading mode
 		embeds = document.querySelectorAll('.internal-embed[src$=".sgf"]');
-		console.log('Found with .internal-embed[src$=".sgf"]:', embeds.length);
+		console.debug('Found with .internal-embed[src$=".sgf"]:', embeds.length);
 
 		if (embeds.length === 0) {
 			embeds = document.querySelectorAll('.internal-embed.file-embed[src*=".sgf"]');
-			console.log('Found with .internal-embed.file-embed[src*=".sgf"]:', embeds.length);
+			console.debug('Found with .internal-embed.file-embed[src*=".sgf"]:', embeds.length);
 		}
 
 		if (embeds.length === 0) {
 			embeds = document.querySelectorAll('div[src$=".sgf"]');
-			console.log('Found with div[src$=".sgf"]:', embeds.length);
+			console.debug('Found with div[src$=".sgf"]:', embeds.length);
 		}
 
 		// Try to find in live preview mode
 		if (embeds.length === 0) {
 			embeds = document.querySelectorAll('a.internal-link[href$=".sgf"]');
-			console.log('Found with a.internal-link[href$=".sgf"]:', embeds.length);
+			console.debug('Found with a.internal-link[href$=".sgf"]:', embeds.length);
 		}
 
 		const embedsArray = Array.from(embeds);
-		console.log('Starting loop through', embedsArray.length, 'embeds');
+		console.debug('Starting loop through', embedsArray.length, 'embeds');
 
 		for (let i = 0; i < embedsArray.length; i++) {
 			const embed = embedsArray[i] as HTMLElement;
-			console.log(`Processing embed ${i}:`, embed);
+			console.debug(`Processing embed ${i}:`, embed);
 
 			// Skip if already processed
 			if (embed.hasAttribute('data-sgf-processed')) {
-				console.log('Already processed, skipping');
+				console.debug('Already processed, skipping');
 				continue;
 			}
 			embed.setAttribute('data-sgf-processed', 'true');
-			console.log('Marked as processed');
+			console.debug('Marked as processed');
 
 			const src = embed.getAttribute('src');
 			const alt = embed.getAttribute('alt');
-			console.log('src attribute:', src);
-			console.log('alt attribute:', alt);
+			console.debug('src attribute:', src);
+			console.debug('alt attribute:', alt);
 
 			const finalSrc = src || alt;
-			console.log('Processing embed with finalSrc:', finalSrc);
+			console.debug('Processing embed with finalSrc:', finalSrc);
 
 			if (!finalSrc || !finalSrc.toLowerCase().endsWith('.sgf')) {
-				console.log('Not an SGF file:', finalSrc);
+				console.debug('Not an SGF file:', finalSrc);
 				continue;
 			}
 
 			// Get the file
 			const file = this.app.metadataCache.getFirstLinkpathDest(finalSrc, '');
-			console.log('Looking for file:', finalSrc, 'Result:', file);
+			console.debug('Looking for file:', finalSrc, 'Result:', file);
 
 			if (!file || !(file instanceof TFile)) {
 				console.error('Could not find file:', finalSrc);
@@ -251,7 +265,7 @@ export default class GoBoardViewerPlugin extends Plugin {
 
 			try {
 				const sgfContent = await this.app.vault.read(file);
-				console.log('Read SGF content, length:', sgfContent.length);
+				console.debug('Read SGF content, length:', sgfContent.length);
 
 				// Create container for the Go board
 				const container = document.createElement('div');
@@ -262,7 +276,7 @@ export default class GoBoardViewerPlugin extends Plugin {
 
 				// Render the board
 				this.renderGoBoard(container, sgfContent);
-				console.log('Successfully rendered Go board for:', finalSrc);
+				console.debug('Successfully rendered Go board for:', finalSrc);
 			} catch (error) {
 				console.error('Error reading or rendering SGF file:', error);
 			}
@@ -270,17 +284,17 @@ export default class GoBoardViewerPlugin extends Plugin {
 	}
 
 	onunload() {
-		console.log('Unloading Go Board Viewer plugin');
+		console.debug('Unloading Go Board Viewer plugin');
 		if (this.mutationObserver) {
 			this.mutationObserver.disconnect();
-			console.log('MutationObserver disconnected');
+			console.debug('MutationObserver disconnected');
 		}
 	}
 
 	/**
 	 * Process SGF code blocks (```sgf ... ```)
 	 */
-	async processSGFCodeBlock(
+	processSGFCodeBlock(
 		source: string,
 		el: HTMLElement,
 		ctx: MarkdownPostProcessorContext
@@ -300,10 +314,10 @@ export default class GoBoardViewerPlugin extends Plugin {
 		const hasSgfText = el.textContent?.includes('.sgf');
 
 		if (hasInternalLink || hasSgfText) {
-			console.log('=== processSGFFileEmbed called ===');
-			console.log('Element:', el.tagName, el.className);
-			console.log('Has internal-link:', !!hasInternalLink);
-			console.log('Text content:', el.textContent?.substring(0, 100));
+			console.debug('=== processSGFFileEmbed called ===');
+			console.debug('Element:', el.tagName, el.className);
+			console.debug('Has internal-link:', !!hasInternalLink);
+			console.debug('Text content:', el.textContent?.substring(0, 100));
 		}
 
 		// Check if this element itself is an SGF embed
@@ -315,15 +329,15 @@ export default class GoBoardViewerPlugin extends Plugin {
 
 		// Only log if we find something relevant
 		if (isSGFEmbed || embeds.length > 0) {
-			console.log('processSGFFileEmbed - Found relevant content');
-			console.log('Element tag:', el.tagName, 'classes:', el.className);
-			console.log('Is SGF embed:', isSGFEmbed);
-			console.log('Children embeds found:', embeds.length);
+			console.debug('processSGFFileEmbed - Found relevant content');
+			console.debug('Element tag:', el.tagName, 'classes:', el.className);
+			console.debug('Is SGF embed:', isSGFEmbed);
+			console.debug('Children embeds found:', embeds.length);
 
 			if (embeds.length > 0) {
 				for (let i = 0; i < embeds.length; i++) {
 					const e = embeds[i] as HTMLElement;
-					console.log(`Child embed ${i}:`, {
+					console.debug(`Child embed ${i}:`, {
 						classes: e.className,
 						src: e.getAttribute('src'),
 						alt: e.getAttribute('alt')
@@ -361,19 +375,19 @@ export default class GoBoardViewerPlugin extends Plugin {
 		// Try to get the file path from various attributes
 		let src = embed.getAttribute('src') || embed.getAttribute('alt');
 
-		console.log('processEmbed - Found embed:', embed);
-		console.log('processEmbed - src attribute:', src);
+		console.debug('processEmbed - Found embed:', embed);
+		console.debug('processEmbed - src attribute:', src);
 
 		if (!src || !src.toLowerCase().endsWith('.sgf')) {
-			console.log('processEmbed - Not an SGF file, skipping');
+			console.debug('processEmbed - Not an SGF file, skipping');
 			return;
 		}
 
-		console.log('processEmbed - Processing SGF file:', src);
+		console.debug('processEmbed - Processing SGF file:', src);
 
 		// Get the file
 		const file = this.app.metadataCache.getFirstLinkpathDest(src, ctx.sourcePath);
-		console.log('processEmbed - Resolved file:', file);
+		console.debug('processEmbed - Resolved file:', file);
 
 		if (!file) {
 			console.error('processEmbed - Could not find file:', src);
@@ -383,7 +397,7 @@ export default class GoBoardViewerPlugin extends Plugin {
 		if (file instanceof TFile) {
 			try {
 				const sgfContent = await this.app.vault.read(file);
-				console.log('processEmbed - Read SGF content, length:', sgfContent.length);
+				console.debug('processEmbed - Read SGF content, length:', sgfContent.length);
 
 				// Create container for the Go board
 				const container = document.createElement('div');
@@ -394,7 +408,7 @@ export default class GoBoardViewerPlugin extends Plugin {
 
 				// Render the board
 				this.renderGoBoard(container, sgfContent);
-				console.log('processEmbed - Successfully rendered Go board for:', src);
+				console.debug('processEmbed - Successfully rendered Go board for:', src);
 			} catch (error) {
 				console.error('processEmbed - Error reading or rendering SGF file:', error);
 				const errorDiv = document.createElement('div');
@@ -411,7 +425,7 @@ export default class GoBoardViewerPlugin extends Plugin {
 	public renderGoBoard(container: HTMLElement, sgfContent: string) {
 		try {
 			// Parse SGF
-			const gameTrees = sgf.parse(sgfContent);
+			const gameTrees = sgf.parse(sgfContent) as SGFGameTree[];
 			if (!gameTrees || gameTrees.length === 0) {
 				throw new Error('No game tree found in SGF');
 			}
@@ -419,7 +433,7 @@ export default class GoBoardViewerPlugin extends Plugin {
 			const gameTree = gameTrees[0];
 
 			// Debug: log the structure
-			console.log('Game tree:', gameTree);
+			console.debug('Game tree:', gameTree);
 
 			// Handle different possible structures
 			const rootNode = gameTree.root || gameTree;
@@ -477,7 +491,7 @@ export default class GoBoardViewerPlugin extends Plugin {
 
 			const containerWidth = Math.min(availableContainerWidth, 700);
 
-			console.log('Container width for board sizing:', containerWidth, 'parent width:', parentElement?.clientWidth, 'viewport:', window.innerWidth);
+			console.debug('Container width for board sizing:', containerWidth, 'parent width:', parentElement?.clientWidth, 'viewport:', window.innerWidth);
 
 			// Use default vertex size - we'll use CSS zoom instead
 			const calculatedVertexSize = 24;
@@ -513,7 +527,11 @@ export default class GoBoardViewerPlugin extends Plugin {
 					const blackRank = gameInfo.blackRank ? ` (${gameInfo.blackRank})` : '';
 					const whiteRank = gameInfo.whiteRank ? ` (${gameInfo.whiteRank})` : '';
 
-					playersEl.innerHTML = `<span class="player-black">⚫ ${blackName}${blackRank}</span> vs <span class="player-white">⚪ ${whiteName}${whiteRank}</span>`;
+					const blackSpan = playersEl.createSpan({ cls: 'player-black' });
+					blackSpan.textContent = `⚫ ${blackName}${blackRank}`;
+					playersEl.appendText(' vs ');
+					const whiteSpan = playersEl.createSpan({ cls: 'player-white' });
+					whiteSpan.textContent = `⚪ ${whiteName}${whiteRank}`;
 					infoSection.appendChild(playersEl);
 				}
 
@@ -541,7 +559,7 @@ export default class GoBoardViewerPlugin extends Plugin {
 			boardContainer.className = 'goboard-display';
 			wrapper.appendChild(boardContainer);
 
-			console.log('Board size:', boardSize, 'Calculated vertexSize:', calculatedVertexSize, 'Container width:', containerWidth);
+			console.debug('Board size:', boardSize, 'Calculated vertexSize:', calculatedVertexSize, 'Container width:', containerWidth);
 
 			// Create controls container
 			const controlsContainer = document.createElement('div');
@@ -549,14 +567,13 @@ export default class GoBoardViewerPlugin extends Plugin {
 			wrapper.appendChild(controlsContainer);
 
 			// Game state
-			let currentNode = rootNode;
 			let moveNumber = 0;
 
 			// Build move tree with variations
 			interface MoveNode {
-				node: any;
+				node: SGFNode;
 				moveNum: number;
-				variations: any[]; // Child nodes (variations)
+				variations: SGFNode[]; // Child nodes (variations)
 			}
 
 			const allMoves: MoveNode[] = [];
@@ -564,7 +581,7 @@ export default class GoBoardViewerPlugin extends Plugin {
 			let rootVariationIndex: number = 0; // Which root variation to follow
 
 			// Build complete move tree
-			const buildMoveTree = (startNode: any, path: number[] = []): MoveNode[] => {
+			const buildMoveTree = (startNode: SGFNode, path: number[] = []): MoveNode[] => {
 				const moves: MoveNode[] = [];
 				let current = startNode;
 
@@ -616,17 +633,17 @@ export default class GoBoardViewerPlugin extends Plugin {
 			currentVariationPath = [];
 			rebuildMoveTree();
 
-			console.log('Collected moves:', allMoves.length);
+			console.debug('Collected moves:', allMoves.length);
 
 			// Function to get SGF markers and setup stones for current position
-			const getSGFMarkers = (): any[][] => {
-				const markerMap: any[][] = [];
+			const getSGFMarkers = (): (MarkerData | null)[][] => {
+				const markerMap: (MarkerData | null)[][] = [];
 				for (let i = 0; i < boardSize; i++) {
 					markerMap[i] = new Array(boardSize).fill(null);
 				}
 
 				// Get current node data
-				let currentNodeData: any = {};
+				let currentNodeData: Record<string, string[]> = {};
 				if (moveNumber === 0) {
 					currentNodeData = rootNode?.data || {};
 				} else if (moveNumber > 0 && moveNumber <= allMoves.length) {
@@ -695,7 +712,7 @@ export default class GoBoardViewerPlugin extends Plugin {
 				}
 
 				// Add variation markers (if current position has variations)
-				let variationSource = null;
+				let variationSource: SGFNode | null = null;
 				if (moveNumber === 0) {
 					// Check root node for variations
 					variationSource = rootNode;
@@ -705,7 +722,7 @@ export default class GoBoardViewerPlugin extends Plugin {
 				}
 
 				if (variationSource && variationSource.children && variationSource.children.length > 1) {
-					variationSource.children.forEach((variation: any, index: number) => {
+					variationSource.children.forEach((variation: SGFNode, index: number) => {
 						// Get the first move of this variation
 						const firstMove = variation.data?.B || variation.data?.W;
 
@@ -724,7 +741,7 @@ export default class GoBoardViewerPlugin extends Plugin {
 					});
 				}
 
-				console.log('MarkerMap generated:', markerMap);
+				console.debug('MarkerMap generated:', markerMap);
 				return markerMap;
 			};
 
@@ -856,7 +873,7 @@ export default class GoBoardViewerPlugin extends Plugin {
 
 					if (move && Array.isArray(move) && move[0] && move[0] !== '') {
 						const coords = this.point2vertex(move[0]);
-						console.log(`Move ${i}: SGF=${move[0]}, coords=(x=${coords.x}, y=${coords.y}), signMap[${coords.y}][${coords.x}], color=${color}`);
+						console.debug(`Move ${i}: SGF=${move[0]}, coords=(x=${coords.x}, y=${coords.y}), signMap[${coords.y}][${coords.x}], color=${color}`);
 						if (coords.x >= 0 && coords.y >= 0 && coords.x < boardSize && coords.y < boardSize) {
 							signMap[coords.y][coords.x] = color;
 
@@ -907,9 +924,9 @@ export default class GoBoardViewerPlugin extends Plugin {
 			const renderBoard = () => {
 				const signMap = getBoardState();
 
-				console.log('Rendering board at move:', moveNumber);
-				console.log('SignMap:', signMap);
-				console.log('Board size:', boardSize);
+				console.debug('Rendering board at move:', moveNumber);
+				console.debug('SignMap:', signMap);
+				console.debug('Board size:', boardSize);
 
 				// Get comment from the last displayed move
 				let comment = '';
@@ -920,7 +937,7 @@ export default class GoBoardViewerPlugin extends Plugin {
 					const rootData = rootNode ? (rootNode.data || {}) : {};
 					comment = rootData.C ? rootData.C[0] : '';
 					// Check if root has variations
-					hasVariations = rootNode && rootNode.children && rootNode.children.length > 1;
+					hasVariations = Boolean(rootNode && rootNode.children && rootNode.children.length > 1);
 				} else if (allMoves && moveNumber > 0 && moveNumber <= allMoves.length) {
 					// Show comment from the last displayed move
 					const moveNode = allMoves[moveNumber - 1];
@@ -928,7 +945,7 @@ export default class GoBoardViewerPlugin extends Plugin {
 					comment = data.C ? data.C[0] : '';
 
 					// Check if this move has variations
-					hasVariations = moveNode.node && moveNode.node.children && moveNode.node.children.length > 1;
+					hasVariations = Boolean(moveNode.node && moveNode.node.children && moveNode.node.children.length > 1);
 				}
 
 				// Render Goban
@@ -954,7 +971,7 @@ export default class GoBoardViewerPlugin extends Plugin {
 					animateStonePlacement: false
 				};
 
-				console.log('Goban props:', gobanProps);
+				console.debug('Goban props:', gobanProps);
 
 				// @ts-ignore
 				render(
@@ -971,8 +988,8 @@ export default class GoBoardViewerPlugin extends Plugin {
 						// Reset zoom to get natural size
 						(gobanElement.style as any).zoom = '1';
 
-						// Force layout
-						gobanElement.offsetHeight;
+						// Force layout (accessing offsetHeight triggers layout)
+						void gobanElement.offsetHeight;
 
 						// Get the natural rendered size
 						const naturalWidth = gobanElement.scrollWidth || gobanElement.offsetWidth;
@@ -981,16 +998,16 @@ export default class GoBoardViewerPlugin extends Plugin {
 						// Get available width
 						const availableWidth = containerWidth - 32;
 
-						console.log('Natural board size:', naturalWidth, 'x', naturalHeight, 'Available width:', availableWidth, 'Container width:', containerWidth);
+						console.debug('Natural board size:', naturalWidth, 'x', naturalHeight, 'Available width:', availableWidth, 'Container width:', containerWidth);
 
 						// Calculate zoom
 						if (naturalWidth > availableWidth) {
 							const zoomFactor = availableWidth / naturalWidth;
-							console.log('Board too wide! Applying zoom factor:', zoomFactor);
+							console.debug('Board too wide! Applying zoom factor:', zoomFactor);
 
 							(gobanElement.style as any).zoom = `${zoomFactor}`;
 						} else {
-							console.log('Board fits naturally, no zoom needed');
+							console.debug('Board fits naturally, no zoom needed');
 							(gobanElement.style as any).zoom = '1';
 						}
 
@@ -1003,7 +1020,7 @@ export default class GoBoardViewerPlugin extends Plugin {
 				// Mark variation labels with a special class for blue styling
 				setTimeout(() => {
 					// Find all variation markers
-					let variationSource = null;
+					let variationSource: SGFNode | null = null;
 					if (moveNumber === 0) {
 						variationSource = rootNode;
 					} else if (moveNumber > 0 && moveNumber <= allMoves.length) {
@@ -1011,7 +1028,7 @@ export default class GoBoardViewerPlugin extends Plugin {
 					}
 
 					if (variationSource && variationSource.children && variationSource.children.length > 1) {
-						variationSource.children.forEach((variation: any, index: number) => {
+						variationSource.children.forEach((variation: SGFNode, index: number) => {
 							const firstMove = variation.data?.B || variation.data?.W;
 							if (firstMove && Array.isArray(firstMove) && firstMove[0]) {
 								const coords = this.point2vertex(firstMove[0]);
@@ -1033,20 +1050,29 @@ export default class GoBoardViewerPlugin extends Plugin {
 
 				// Update info display
 				const totalMoves = allMoves ? allMoves.length : 0;
-				const variationInfo = hasVariations ? ' <span class="variation-indicator">(has variations)</span>' : '';
-				const infoHtml = `
-					<div class="goboard-info">
-						<div><strong>Move:</strong> ${moveNumber} / ${totalMoves}${variationInfo}</div>
-						${comment ? `<div class="goboard-comment">${comment}</div>` : ''}
-					</div>
-				`;
 
 				const existingInfo = controlsContainer.querySelector('.goboard-info');
 				if (existingInfo) {
-					existingInfo.outerHTML = infoHtml;
-				} else {
-					controlsContainer.insertAdjacentHTML('afterbegin', infoHtml);
+					existingInfo.remove();
 				}
+
+				const infoDiv = controlsContainer.createDiv({ cls: 'goboard-info' });
+				const moveDiv = infoDiv.createDiv();
+				const moveLabelStrong = moveDiv.createEl('strong');
+				moveLabelStrong.textContent = 'Move:';
+				moveDiv.appendText(` ${moveNumber} / ${totalMoves}`);
+
+				if (hasVariations) {
+					const variationSpan = moveDiv.createSpan({ cls: 'variation-indicator' });
+					variationSpan.textContent = '(has variations)';
+				}
+
+				if (comment) {
+					const commentDiv = infoDiv.createDiv({ cls: 'goboard-comment' });
+					commentDiv.textContent = comment;
+				}
+
+				controlsContainer.insertBefore(infoDiv, controlsContainer.firstChild);
 
 				// Update variation selection UI
 				let variationContainer = controlsContainer.querySelector('.goboard-variations');
@@ -1058,7 +1084,7 @@ export default class GoBoardViewerPlugin extends Plugin {
 
 				// Add variation selection buttons if current position has variations
 				if (hasVariations) {
-					let variations = [];
+					let variations: SGFNode[] = [];
 					let pathIndex = -1;
 
 					if (moveNumber === 0) {
@@ -1087,7 +1113,7 @@ export default class GoBoardViewerPlugin extends Plugin {
 						// Get current selected variation for this position
 						const currentVariationIndex = moveNumber === 0 ? rootVariationIndex : (pathIndex >= 0 ? (currentVariationPath[pathIndex] || 0) : 0);
 
-						variations.forEach((_: any, index: number) => {
+						variations.forEach((_variation: SGFNode, index: number) => {
 							const btn = document.createElement('button');
 							btn.className = 'goboard-variation-btn';
 							if (index === currentVariationIndex) {
@@ -1162,7 +1188,7 @@ export default class GoBoardViewerPlugin extends Plugin {
 			renderBoard();
 
 			// Add resize listener for responsive behavior
-			let resizeTimeout: any;
+			let resizeTimeout: ReturnType<typeof setTimeout> | undefined;
 			const resizeObserver = new ResizeObserver(() => {
 				// Debounce resize events
 				clearTimeout(resizeTimeout);
@@ -1191,7 +1217,8 @@ export default class GoBoardViewerPlugin extends Plugin {
 
 					// Reset and remeasure
 					(gobanElement.style as any).zoom = '1';
-					gobanElement.offsetHeight; // Force layout
+					// Force layout (accessing offsetHeight triggers layout)
+					void gobanElement.offsetHeight;
 
 					const naturalWidth = gobanElement.scrollWidth || gobanElement.offsetWidth;
 					const newAvailableWidth = newContainerWidth - 32;
@@ -1208,11 +1235,12 @@ export default class GoBoardViewerPlugin extends Plugin {
 			// Observe the wrapper for size changes
 			resizeObserver.observe(wrapper);
 
-		} catch (error: any) {
+		} catch (error) {
 			console.error('Error rendering Go board:', error);
 			const errorDiv = document.createElement('div');
 			errorDiv.className = 'goboard-error';
-			errorDiv.textContent = 'Error rendering Go board: ' + (error?.message || 'Unknown error');
+			const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+			errorDiv.textContent = 'Error rendering Go board: ' + errorMessage;
 			container.appendChild(errorDiv);
 		}
 	}
