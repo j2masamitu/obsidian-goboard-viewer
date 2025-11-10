@@ -1,9 +1,9 @@
 {
   "id": "goboard-viewer",
   "name": "Go Board Viewer",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "minAppVersion": "0.15.0",
-  "description": "Display SGF (Smart Game Format) files and code blocks as interactive Go boards with playback controls, variations, and markers",
+  "description": "Displays Go (Weiqi/Baduk) SGF files and code blocks as interactive Go boards with playback controls for desktop and mobile.",
   "author": "j2masamitu",
   "authorUrl": "https://github.com/j2masamitu",
   "isDesktopOnly": false
