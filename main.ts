@@ -50,10 +50,10 @@ class SGFView extends FileView {
 		this.plugin.renderGoBoard(container, content);
 	}
 
-	async onUnloadFile(file: TFile): Promise<void> {
+	onUnloadFile(file: TFile): Promise<void> {
 		// Clear the view
 		this.contentEl.empty();
-		// No async operations needed, but method must be async to match base class
+		return Promise.resolve();
 	}
 }
 
@@ -98,7 +98,9 @@ export default class GoBoardViewerPlugin extends Plugin {
 		this.setupMutationObserver();
 
 		// Initial processing
-		setTimeout(() => this.processSGFEmbeds(), 1000);
+		setTimeout(() => {
+			this.processSGFEmbeds().catch(console.error);
+		}, 1000);
 
 		console.debug('Go Board Viewer plugin loaded');
 	}
@@ -986,7 +988,7 @@ export default class GoBoardViewerPlugin extends Plugin {
 						if (!gobanElement) return;
 
 						// Reset zoom to get natural size
-						(gobanElement.style as any).zoom = '1';
+						gobanElement.style.setProperty('zoom', '1');
 
 						// Force layout (accessing offsetHeight triggers layout)
 						void gobanElement.offsetHeight;
@@ -1005,10 +1007,10 @@ export default class GoBoardViewerPlugin extends Plugin {
 							const zoomFactor = availableWidth / naturalWidth;
 							console.debug('Board too wide! Applying zoom factor:', zoomFactor);
 
-							(gobanElement.style as any).zoom = `${zoomFactor}`;
+							gobanElement.style.setProperty('zoom', `${zoomFactor}`);
 						} else {
 							console.debug('Board fits naturally, no zoom needed');
-							(gobanElement.style as any).zoom = '1';
+							gobanElement.style.setProperty('zoom', '1');
 						}
 
 						zoomApplied = true;
@@ -1216,7 +1218,7 @@ export default class GoBoardViewerPlugin extends Plugin {
 					const newContainerWidth = Math.min(availableContainerWidth, 700);
 
 					// Reset and remeasure
-					(gobanElement.style as any).zoom = '1';
+					gobanElement.style.setProperty('zoom', '1');
 					// Force layout (accessing offsetHeight triggers layout)
 					void gobanElement.offsetHeight;
 
@@ -1225,9 +1227,9 @@ export default class GoBoardViewerPlugin extends Plugin {
 
 					if (naturalWidth > newAvailableWidth) {
 						const zoomFactor = newAvailableWidth / naturalWidth;
-						(gobanElement.style as any).zoom = `${zoomFactor}`;
+						gobanElement.style.setProperty('zoom', `${zoomFactor}`);
 					} else {
-						(gobanElement.style as any).zoom = '1';
+						gobanElement.style.setProperty('zoom', '1');
 					}
 				}, 100);
 			});
