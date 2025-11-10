@@ -47,7 +47,7 @@ An Obsidian plugin that displays SGF (Smart Game Format) files and code blocks a
 ### Manual Installation
 
 1. Download the latest release from the [Releases page](https://github.com/j2masamitu/obsidian-goboard-viewer/releases)
-2. Extract the files to your Obsidian vault's `.obsidian/plugins/obsidian-goboard-viewer/` directory
+2. Extract the files to your Obsidian vault's `.obsidian/plugins/goboard-viewer/` directory
 3. Enable the plugin in Obsidian Settings → Community Plugins
 
 **Note for Mobile Users with Sync Plugins**:
@@ -64,7 +64,7 @@ An Obsidian plugin that displays SGF (Smart Game Format) files and code blocks a
 1. Clone this repository
 2. Install dependencies: `npm install`
 3. Build the plugin: `npm run build`
-4. Copy the following files to `.obsidian/plugins/obsidian-goboard-viewer/`:
+4. Copy the following files to `.obsidian/plugins/goboard-viewer/`:
    - `manifest.json`
    - `main.js`
    - `styles.css`

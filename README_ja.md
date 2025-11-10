@@ -47,7 +47,7 @@ SGF（Smart Game Format）ファイルやコードブロックを、再生機能
 ### 手動インストール
 
 1. [Releasesページ](https://github.com/j2masamitu/obsidian-goboard-viewer/releases)から最新版をダウンロード
-2. ファイルをObsidian vaultの`.obsidian/plugins/obsidian-goboard-viewer/`ディレクトリに展開
+2. ファイルをObsidian vaultの`.obsidian/plugins/goboard-viewer/`ディレクトリに展開
 3. Obsidianの設定 → コミュニティプラグインでプラグインを有効化
 
 **同期プラグインを使用しているモバイルユーザーへの注意**：
@@ -64,7 +64,7 @@ SGF（Smart Game Format）ファイルやコードブロックを、再生機能
 1. このリポジトリをクローン
 2. 依存関係をインストール: `npm install`
 3. プラグインをビルド: `npm run build`
-4. 以下のファイルを`.obsidian/plugins/obsidian-goboard-viewer/`にコピー:
+4. 以下のファイルを`.obsidian/plugins/goboard-viewer/`にコピー:
    - `manifest.json`
    - `main.js`
    - `styles.css`

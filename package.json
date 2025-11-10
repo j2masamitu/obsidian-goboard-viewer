@@ -1,5 +1,5 @@
 {
-  "name": "obsidian-goboard-viewer",
+  "name": "goboard-viewer",
   "version": "1.0.0",
   "description": "Obsidian plugin to display SGF files as interactive Go boards with playback controls, variations, and markers",
   "main": "main.js",

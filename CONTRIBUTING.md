@@ -30,7 +30,7 @@ npm run build
 Test the plugin in Obsidian:
 
 1. Build the plugin
-2. Copy `manifest.json`, `main.js`, and `styles.css` to your vault's `.obsidian/plugins/obsidian-goboard-viewer/`
+2. Copy `manifest.json`, `main.js`, and `styles.css` to your vault's `.obsidian/plugins/goboard-viewer/`
 3. Reload Obsidian
 4. Enable the plugin in Settings
 
