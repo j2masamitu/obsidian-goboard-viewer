@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.5] - 2025-11-11
+
+### Fixed
+- Fixed stone display issue where stones were showing as "1" and "-1" text instead of graphical stones
+- Added comprehensive CSS rules to completely hide numerical text content in stone elements
+- Stones now properly display as circular graphical elements with radial gradients
+
 ## [1.1.4] - 2025-11-10
 
 ### Fixed

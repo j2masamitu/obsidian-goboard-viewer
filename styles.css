@@ -129,6 +129,36 @@
   border: 1px solid rgba(0, 0, 0, 0.1) !important;
 }
 
+/* Completely hide all text content inside stones */
+.goboard-display .shudan-stone-image *,
+.goboard-display .shudan-sign_1 *,
+.goboard-display .shudan-sign_-1 * {
+  display: none !important;
+  visibility: hidden !important;
+  font-size: 0 !important;
+  color: transparent !important;
+}
+
+/* Hide text nodes directly in stone elements */
+.goboard-display .shudan-vertex[class*="shudan-sign"],
+.goboard-display .shudan-vertex .shudan-stone-image {
+  font-size: 0 !important;
+  color: transparent !important;
+  text-indent: -9999px !important;
+  overflow: hidden !important;
+}
+
+/* Prevent any pseudo-elements from showing text */
+.goboard-display .shudan-stone-image::before,
+.goboard-display .shudan-stone-image::after,
+.goboard-display .shudan-sign_1::before,
+.goboard-display .shudan-sign_1::after,
+.goboard-display .shudan-sign_-1::before,
+.goboard-display .shudan-sign_-1::after {
+  content: '' !important;
+  display: none !important;
+}
+
 /* Force all shudan elements to be circular */
 .goboard-display .shudan-inner {
   border-radius: 50% !important;
