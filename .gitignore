@@ -12,6 +12,9 @@ data.json
 # misc
 .DS_Store
 
+# claude code internal docs
+RELEASE.md
+
 # editor
 .vscode/
 .idea/

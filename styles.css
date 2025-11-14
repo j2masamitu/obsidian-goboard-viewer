@@ -164,7 +164,7 @@
 
 .goboard-display .shudan-coordx span,
 .goboard-display .shudan-coordy span {
-  font-size: 9px !important;
+  font-size: 11px !important;
   font-weight: 600 !important;
   color: #333 !important;
   white-space: nowrap !important;
@@ -188,6 +188,23 @@
   left: 0 !important;
   text-align: center !important;
   z-index: 10 !important;
+  /* Hide default text content from shudan library */
+  font-size: 0 !important;
+  color: transparent !important;
+  text-indent: -9999px !important;
+}
+
+/* Hide all child elements inside markers */
+.goboard-display .shudan-marker > * {
+  display: none !important;
+}
+
+/* Show only the ::before pseudo-element content for markers */
+.goboard-display .shudan-marker::before {
+  font-size: 22px !important;
+  color: inherit !important;
+  text-indent: 0 !important;
+  display: inline-block !important;
 }
 
 /* Label markers - default red - with multiple selectors */
