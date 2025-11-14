@@ -208,6 +208,7 @@
 }
 
 /* Label markers - default red - with multiple selectors */
+/* Labels need to show text, so override the hidden text rules */
 .goboard-display .shudan-marker.shudan-label,
 .goboard-display [class*="shudan-marker"][class*="label"],
 .goboard-display .shudan-marker[data-type="label"],
@@ -216,6 +217,13 @@
   font-weight: bold !important;
   font-family: 'Arial', 'Helvetica', sans-serif !important;
   color: #FF0000 !important;
+  text-indent: 0 !important;
+}
+
+/* Show label text content (override hiding rules) */
+.goboard-display .shudan-marker.shudan-label > *,
+.goboard-display [class*="shudan-marker"][class*="label"] > * {
+  display: inline !important;
 }
 
 /* Label markers on stones - also red */
