@@ -4,6 +4,9 @@
 body {
   --goboard-bg-color: #DCB35C;
   --goboard-line-color: #000000;
+  --goboard-coordinate-color: #333333;
+  --goboard-marker-color: #FF0000;
+  --goboard-variation-color: #2196F3;
 }
 
 .goboard-container {
@@ -92,8 +95,22 @@ body {
 }
 
 /* Board grid lines */
-.goboard-display .shudan-goban svg line {
+.goboard-display .shudan-goban svg line,
+.goboard-display .shudan-goban line,
+.goboard-display svg line {
   stroke: var(--goboard-line-color) !important;
+}
+
+/* Board grid lines (rect elements) */
+.goboard-display .shudan-grid .shudan-gridline,
+.goboard-display svg.shudan-grid rect.shudan-gridline {
+  fill: var(--goboard-line-color) !important;
+}
+
+/* Star points (hoshi) on the board */
+.goboard-display .shudan-goban svg circle,
+.goboard-display .shudan-goban circle {
+  fill: var(--goboard-line-color) !important;
 }
 
 .goboard-display .shudan-vertex {
@@ -177,7 +194,7 @@ body {
 .goboard-display .shudan-coordy span {
   font-size: 11px !important;
   font-weight: 600 !important;
-  color: #333 !important;
+  color: var(--goboard-coordinate-color) !important;
   white-space: nowrap !important;
   letter-spacing: 0 !important;
   line-height: 1.2 !important;
@@ -227,7 +244,7 @@ body {
   font-size: 22px !important;
   font-weight: bold !important;
   font-family: 'Arial', 'Helvetica', sans-serif !important;
-  color: #FF0000 !important;
+  color: var(--goboard-marker-color) !important;
   text-indent: 0 !important;
 }
 
@@ -240,18 +257,18 @@ body {
 /* Label markers on stones - also red */
 .goboard-display .shudan-sign_1 .shudan-marker.shudan-label,
 .goboard-display .shudan-sign_-1 .shudan-marker.shudan-label {
-  color: #FF0000 !important;
+  color: var(--goboard-marker-color) !important;
   font-size: 20px !important;
 }
 
 /* Variation markers (A, B, C single letters) - blue */
 .goboard-display .shudan-marker.variation-marker {
-  color: #2196F3 !important;
+  color: var(--goboard-variation-color) !important;
 }
 
 .goboard-display .shudan-sign_1 .shudan-marker.variation-marker,
 .goboard-display .shudan-sign_-1 .shudan-marker.variation-marker {
-  color: #2196F3 !important;
+  color: var(--goboard-variation-color) !important;
 }
 
 
@@ -260,7 +277,7 @@ body {
 .goboard-display [class*="shudan-marker"][class*="circle"]::before {
   content: '○' !important;
   font-size: 22px !important;
-  color: #FF0000 !important;
+  color: var(--goboard-marker-color) !important;
   font-weight: bold !important;
   line-height: 1 !important;
 }
@@ -269,7 +286,7 @@ body {
 .goboard-display .shudan-sign_-1 .shudan-marker.shudan-circle::before,
 .goboard-display .shudan-sign_1 [class*="circle"]::before,
 .goboard-display .shudan-sign_-1 [class*="circle"]::before {
-  color: #FF0000 !important;
+  color: var(--goboard-marker-color) !important;
 }
 
 /* Square marker (SQ) - red */
@@ -277,7 +294,7 @@ body {
 .goboard-display [class*="shudan-marker"][class*="square"]::before {
   content: '□' !important;
   font-size: 22px !important;
-  color: #FF0000 !important;
+  color: var(--goboard-marker-color) !important;
   font-weight: bold !important;
   line-height: 1 !important;
 }
@@ -286,7 +303,7 @@ body {
 .goboard-display .shudan-sign_-1 .shudan-marker.shudan-square::before,
 .goboard-display .shudan-sign_1 [class*="square"]::before,
 .goboard-display .shudan-sign_-1 [class*="square"]::before {
-  color: #FF0000 !important;
+  color: var(--goboard-marker-color) !important;
 }
 
 /* Triangle marker (TR) - red */
@@ -294,7 +311,7 @@ body {
 .goboard-display [class*="shudan-marker"][class*="triangle"]::before {
   content: '△' !important;
   font-size: 22px !important;
-  color: #FF0000 !important;
+  color: var(--goboard-marker-color) !important;
   font-weight: bold !important;
   line-height: 1 !important;
 }
@@ -303,7 +320,7 @@ body {
 .goboard-display .shudan-sign_-1 .shudan-marker.shudan-triangle::before,
 .goboard-display .shudan-sign_1 [class*="triangle"]::before,
 .goboard-display .shudan-sign_-1 [class*="triangle"]::before {
-  color: #FF0000 !important;
+  color: var(--goboard-marker-color) !important;
 }
 
 /* Point marker (MA - X mark) - red */
@@ -311,7 +328,7 @@ body {
 .goboard-display [class*="shudan-marker"][class*="point"]::before {
   content: '✕' !important;
   font-size: 22px !important;
-  color: #FF0000 !important;
+  color: var(--goboard-marker-color) !important;
   font-weight: bold !important;
   line-height: 1 !important;
 }
@@ -320,7 +337,7 @@ body {
 .goboard-display .shudan-sign_-1 .shudan-marker.shudan-point::before,
 .goboard-display .shudan-sign_1 [class*="point"]::before,
 .goboard-display .shudan-sign_-1 [class*="point"]::before {
-  color: #FF0000 !important;
+  color: var(--goboard-marker-color) !important;
 }
 
 /* Cross marker (alternative) */

@@ -30,9 +30,16 @@ An Obsidian plugin that displays SGF (Smart Game Format) files and code blocks a
 - **Setup Stones**: Support for AB (Add Black), AW (Add White), AE (Add Empty)
 - **Multiple Board Sizes**: 19×19, 13×13, 9×9, and custom sizes
 
-### Design
+### Design & Customization
 - **Responsive Design**: Adapts to various screen sizes - perfect for studying Go games on your phone or tablet
 - **Touch-Friendly**: Optimized button sizes and layouts for mobile devices
+- **Customizable Colors**: Full color customization via settings:
+  - Board background color
+  - Grid line color (including star points)
+  - Coordinate label color
+  - SGF marker color (circles, triangles, squares, labels)
+  - Variation label color
+  - Reset to defaults button
 
 ## Screenshots
 

@@ -8,11 +8,17 @@ import * as sgf from '@sabaki/sgf';
 interface GoBoardSettings {
 	boardColor: string;
 	lineColor: string;
+	coordinateColor: string;
+	markerColor: string;
+	variationColor: string;
 }
 
 const DEFAULT_SETTINGS: GoBoardSettings = {
 	boardColor: '#DCB35C',
-	lineColor: '#000000'
+	lineColor: '#000000',
+	coordinateColor: '#333333',
+	markerColor: '#FF0000',
+	variationColor: '#2196F3'
 };
 
 // Type definitions for SGF library
@@ -1280,7 +1286,10 @@ export default class GoBoardViewerPlugin extends Plugin {
 	applyCSSVariables() {
 		document.body.setCssProps({
 			'--goboard-bg-color': this.settings.boardColor,
-			'--goboard-line-color': this.settings.lineColor
+			'--goboard-line-color': this.settings.lineColor,
+			'--goboard-coordinate-color': this.settings.coordinateColor,
+			'--goboard-marker-color': this.settings.markerColor,
+			'--goboard-variation-color': this.settings.variationColor
 		});
 	}
 }
@@ -1318,6 +1327,51 @@ class GoBoardSettingTab extends PluginSettingTab {
 				.onChange(async (value) => {
 					this.plugin.settings.lineColor = value;
 					await this.plugin.saveSettings();
+				}));
+
+		new Setting(containerEl)
+			.setName('Coordinate color')
+			.setDesc('Color of the board coordinates (A-T, 1-19)')
+			.addColorPicker(color => color
+				.setValue(this.plugin.settings.coordinateColor)
+				.onChange(async (value) => {
+					this.plugin.settings.coordinateColor = value;
+					await this.plugin.saveSettings();
+				}));
+
+		new Setting(containerEl)
+			.setName('Marker color')
+			.setDesc('Color of SGF markers (circles, triangles, squares, labels)')
+			.addColorPicker(color => color
+				.setValue(this.plugin.settings.markerColor)
+				.onChange(async (value) => {
+					this.plugin.settings.markerColor = value;
+					await this.plugin.saveSettings();
+				}));
+
+		new Setting(containerEl)
+			.setName('Variation label color')
+			.setDesc('Color of variation labels (A, B, C, etc.)')
+			.addColorPicker(color => color
+				.setValue(this.plugin.settings.variationColor)
+				.onChange(async (value) => {
+					this.plugin.settings.variationColor = value;
+					await this.plugin.saveSettings();
+				}));
+
+		new Setting(containerEl)
+			.setName('Reset colors')
+			.setDesc('Reset all colors to default values')
+			.addButton(button => button
+				.setButtonText('Reset to defaults')
+				.onClick(async () => {
+					this.plugin.settings.boardColor = DEFAULT_SETTINGS.boardColor;
+					this.plugin.settings.lineColor = DEFAULT_SETTINGS.lineColor;
+					this.plugin.settings.coordinateColor = DEFAULT_SETTINGS.coordinateColor;
+					this.plugin.settings.markerColor = DEFAULT_SETTINGS.markerColor;
+					this.plugin.settings.variationColor = DEFAULT_SETTINGS.variationColor;
+					await this.plugin.saveSettings();
+					this.display(); // Refresh the settings display
 				}));
 	}
 }

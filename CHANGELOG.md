@@ -8,13 +8,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.2.0] - 2025-11-16
 
 ### Added
-- Added customizable board color settings
-- Added customizable grid line color settings
-- Added settings tab with color pickers for board background and line colors
-- CSS variables (--goboard-bg-color and --goboard-line-color) for real-time color customization
+- Added comprehensive color customization settings with color pickers:
+  - Board background color
+  - Board grid line color (including star points)
+  - Coordinate label color
+  - SGF marker color (circles, triangles, squares, labels)
+  - Variation label color (A, B, C, etc.)
+- Added "Reset to defaults" button to restore all colors to default values
+- CSS variables for all customizable colors for real-time updates
 
 ### Changed
 - Board colors now use CSS variables for dynamic theming
+- All marker and label colors are now customizable instead of fixed
+
+### Fixed
+- Fixed board grid lines not updating when line color is changed (now targets rect.shudan-gridline elements)
 
 ## [1.1.8] - 2025-11-14
 
