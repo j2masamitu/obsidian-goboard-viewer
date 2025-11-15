@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.2] - 2025-11-16
+
+### Fixed
+- Fixed settings UI to use `setHeading()` instead of direct HTML heading creation (Obsidian PR review requirement)
+- Changed UI text to sentence case for consistency (Obsidian PR review requirement)
+
 ## [1.2.1] - 2025-11-16
 
 ### Added

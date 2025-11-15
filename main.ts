@@ -1307,11 +1307,13 @@ class GoBoardSettingTab extends PluginSettingTab {
 
 		containerEl.empty();
 
-		containerEl.createEl('h2', {text: 'Go Board Viewer Settings'});
+		new Setting(containerEl)
+			.setName('Go Board Viewer')
+			.setHeading();
 
 		new Setting(containerEl)
 			.setName('Board background color')
-			.setDesc('Color of the Go board background')
+			.setDesc('Color of the go board background')
 			.addColorPicker(color => color
 				.setValue(this.plugin.settings.boardColor)
 				.onChange(async (value) => {
@@ -1321,7 +1323,7 @@ class GoBoardSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('Board line color')
-			.setDesc('Color of the Go board grid lines')
+			.setDesc('Color of the go board grid lines')
 			.addColorPicker(color => color
 				.setValue(this.plugin.settings.lineColor)
 				.onChange(async (value) => {
