@@ -1,8 +1,19 @@
-import { Plugin, MarkdownPostProcessorContext, TFile, FileView, WorkspaceLeaf } from 'obsidian';
+import { Plugin, MarkdownPostProcessorContext, TFile, FileView, WorkspaceLeaf, PluginSettingTab, Setting, App } from 'obsidian';
 import { h, render } from 'preact';
 import { Goban } from '@sabaki/shudan';
 // @ts-ignore
 import * as sgf from '@sabaki/sgf';
+
+// Settings interface
+interface GoBoardSettings {
+	boardColor: string;
+	lineColor: string;
+}
+
+const DEFAULT_SETTINGS: GoBoardSettings = {
+	boardColor: '#DCB35C',
+	lineColor: '#000000'
+};
 
 // Type definitions for SGF library
 interface SGFNode {
@@ -58,6 +69,7 @@ class SGFView extends FileView {
 }
 
 export default class GoBoardViewerPlugin extends Plugin {
+	settings: GoBoardSettings;
 	private mutationObserver: MutationObserver | null = null;
 
 	/**
@@ -75,8 +87,17 @@ export default class GoBoardViewerPlugin extends Plugin {
 		return { x, y };
 	}
 
-	onload() {
+	async onload() {
 		console.debug('Loading Go Board Viewer plugin (Sabaki version)');
+
+		// Load settings
+		await this.loadSettings();
+
+		// Add settings tab
+		this.addSettingTab(new GoBoardSettingTab(this.app, this));
+
+		// Apply initial CSS variables
+		this.applyCSSVariables();
 
 		// Register markdown code block processor for SGF (both lowercase and uppercase)
 		this.registerMarkdownCodeBlockProcessor('sgf', this.processSGFCodeBlock.bind(this));
@@ -1245,5 +1266,58 @@ export default class GoBoardViewerPlugin extends Plugin {
 			errorDiv.textContent = 'Error rendering Go board: ' + errorMessage;
 			container.appendChild(errorDiv);
 		}
+	}
+
+	async loadSettings() {
+		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+	}
+
+	async saveSettings() {
+		await this.saveData(this.settings);
+		this.applyCSSVariables();
+	}
+
+	applyCSSVariables() {
+		document.body.setCssProps({
+			'--goboard-bg-color': this.settings.boardColor,
+			'--goboard-line-color': this.settings.lineColor
+		});
+	}
+}
+
+class GoBoardSettingTab extends PluginSettingTab {
+	plugin: GoBoardViewerPlugin;
+
+	constructor(app: App, plugin: GoBoardViewerPlugin) {
+		super(app, plugin);
+		this.plugin = plugin;
+	}
+
+	display(): void {
+		const {containerEl} = this;
+
+		containerEl.empty();
+
+		containerEl.createEl('h2', {text: 'Go Board Viewer Settings'});
+
+		new Setting(containerEl)
+			.setName('Board background color')
+			.setDesc('Color of the Go board background')
+			.addColorPicker(color => color
+				.setValue(this.plugin.settings.boardColor)
+				.onChange(async (value) => {
+					this.plugin.settings.boardColor = value;
+					await this.plugin.saveSettings();
+				}));
+
+		new Setting(containerEl)
+			.setName('Board line color')
+			.setDesc('Color of the Go board grid lines')
+			.addColorPicker(color => color
+				.setValue(this.plugin.settings.lineColor)
+				.onChange(async (value) => {
+					this.plugin.settings.lineColor = value;
+					await this.plugin.saveSettings();
+				}));
 	}
 }

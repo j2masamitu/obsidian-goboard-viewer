@@ -6,6 +6,9 @@ package-lock.json
 main.js
 *.js.map
 
+# release files
+*.zip
+
 # obsidian
 data.json
 
@@ -14,6 +17,9 @@ data.json
 
 # claude code internal docs
 RELEASE.md
+
+# goboard-publisher (separate project)
+goboard-publisher/
 
 # editor
 .vscode/

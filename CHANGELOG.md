@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2025-11-16
+
+### Added
+- Added customizable board color settings
+- Added customizable grid line color settings
+- Added settings tab with color pickers for board background and line colors
+- CSS variables (--goboard-bg-color and --goboard-line-color) for real-time color customization
+
+### Changed
+- Board colors now use CSS variables for dynamic theming
+
 ## [1.1.8] - 2025-11-14
 
 ### Fixed

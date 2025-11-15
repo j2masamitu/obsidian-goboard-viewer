@@ -1,5 +1,11 @@
 /* Go Board Viewer Plugin Styles - Sabaki Version */
 
+/* CSS Variables for board customization */
+body {
+  --goboard-bg-color: #DCB35C;
+  --goboard-line-color: #000000;
+}
+
 .goboard-container {
   margin: 1em 0;
   width: 100%;
@@ -81,8 +87,13 @@
 .goboard-display .shudan-goban {
   border: 1px solid var(--background-modifier-border);
   border-radius: 4px;
-  background: #FFFFFF;
+  background: var(--goboard-bg-color) !important;
   transform-origin: top left;
+}
+
+/* Board grid lines */
+.goboard-display .shudan-goban svg line {
+  stroke: var(--goboard-line-color) !important;
 }
 
 .goboard-display .shudan-vertex {
