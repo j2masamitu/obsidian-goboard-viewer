@@ -1308,7 +1308,7 @@ class GoBoardSettingTab extends PluginSettingTab {
 		containerEl.empty();
 
 		new Setting(containerEl)
-			.setName('Go Board Viewer')
+			.setName('Display settings')
 			.setHeading();
 
 		new Setting(containerEl)
@@ -1333,7 +1333,7 @@ class GoBoardSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('Coordinate color')
-			.setDesc('Color of the board coordinates (A-T, 1-19)')
+			.setDesc('Color of the board coordinates')
 			.addColorPicker(color => color
 				.setValue(this.plugin.settings.coordinateColor)
 				.onChange(async (value) => {
@@ -1343,7 +1343,7 @@ class GoBoardSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('Marker color')
-			.setDesc('Color of SGF markers (circles, triangles, squares, labels)')
+			.setDesc('Color of markers on the board')
 			.addColorPicker(color => color
 				.setValue(this.plugin.settings.markerColor)
 				.onChange(async (value) => {
@@ -1353,7 +1353,7 @@ class GoBoardSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('Variation label color')
-			.setDesc('Color of variation labels (A, B, C, etc.)')
+			.setDesc('Color of variation labels')
 			.addColorPicker(color => color
 				.setValue(this.plugin.settings.variationColor)
 				.onChange(async (value) => {
