@@ -93,6 +93,108 @@ export default class GoBoardViewerPlugin extends Plugin {
 		return { x, y };
 	}
 
+	/**
+	 * Convert vertex coordinates [x, y] to SGF point notation (e.g., "dd")
+	 */
+	private vertex2point(vertex: [number, number]): string {
+		const [x, y] = vertex;
+		return String.fromCharCode(97 + x) + String.fromCharCode(97 + y);
+	}
+
+	/**
+	 * Handle vertex click in edit mode - add a move or create a variation
+	 */
+	private handleVertexClick(
+		vertex: [number, number],
+		currentNode: SGFNode,
+		allMoves: Array<{ node: SGFNode; moveNum: number; variations: SGFNode[] }>,
+		moveNumber: number,
+		renderBoard: () => void
+	): void {
+		const point = this.vertex2point(vertex);
+
+		// Determine whose turn it is
+		const nextPlayer = this.getNextPlayer(currentNode, allMoves, moveNumber);
+		const moveProperty = nextPlayer === 'B' ? 'B' : 'W';
+
+		// Check if there's already a move at this location from current node
+		const existingChild = currentNode.children?.find((child: SGFNode) => {
+			const childMove = child.data?.[moveProperty];
+			return childMove && Array.isArray(childMove) && childMove[0] === point;
+		});
+
+		if (existingChild) {
+			// Move already exists, don't add duplicate
+			console.debug('Move already exists at this position');
+			return;
+		}
+
+		// Check if current node already has a move
+		if (currentNode.children && currentNode.children.length > 0) {
+			// Create a variation
+			const newNode: SGFNode = {
+				data: { [moveProperty]: [point] },
+				children: []
+			};
+			currentNode.children.push(newNode);
+			console.debug('Created variation at', point);
+		} else {
+			// Add first move
+			const newNode: SGFNode = {
+				data: { [moveProperty]: [point] },
+				children: []
+			};
+			currentNode.children = [newNode];
+			console.debug('Added move at', point);
+		}
+
+		// Re-render the board
+		renderBoard();
+	}
+
+	/**
+	 * Determine the next player based on current position
+	 */
+	private getNextPlayer(
+		currentNode: SGFNode,
+		allMoves: Array<{ node: SGFNode; moveNum: number; variations: SGFNode[] }>,
+		moveNumber: number
+	): 'B' | 'W' {
+		// If we're at the root or no moves yet, black plays first
+		if (moveNumber === 0) {
+			return 'B';
+		}
+
+		// Get the last move's player by checking the node
+		const lastMove = allMoves[moveNumber - 1];
+		if (lastMove && lastMove.node.data) {
+			// Check if it's a black or white move
+			if (lastMove.node.data.B) {
+				return 'W'; // Last was black, next is white
+			} else if (lastMove.node.data.W) {
+				return 'B'; // Last was white, next is black
+			}
+		}
+
+		// Default to black
+		return 'B';
+	}
+
+	/**
+	 * Delete current node and all its descendants
+	 */
+	private deleteFromCurrentNode(
+		currentNode: SGFNode,
+		renderBoard: () => void
+	): void {
+		// Remove all children from current node
+		if (currentNode.children) {
+			currentNode.children = [];
+			console.debug('Deleted all moves from current position');
+			renderBoard();
+		}
+	}
+
 	async onload() {
 		console.debug('Loading Go Board Viewer plugin (Sabaki version)');
 
@@ -108,6 +210,10 @@ export default class GoBoardViewerPlugin extends Plugin {
 		// Register markdown code block processor for SGF (both lowercase and uppercase)
 		this.registerMarkdownCodeBlockProcessor('sgf', this.processSGFCodeBlock.bind(this));
 		this.registerMarkdownCodeBlockProcessor('SGF', this.processSGFCodeBlock.bind(this));
+
+		// Register markdown code block processor for SGF editor
+		this.registerMarkdownCodeBlockProcessor('sgf-edit', (source, el, ctx) => this.processSGFEditBlock(source, el, ctx));
+		this.registerMarkdownCodeBlockProcessor('SGF-EDIT', (source, el, ctx) => this.processSGFEditBlock(source, el, ctx));
 
 		// Register SGF file extension (both lowercase and uppercase)
 		this.registerExtensions(['sgf', 'SGF'], 'sgf');
@@ -332,6 +438,17 @@ export default class GoBoardViewerPlugin extends Plugin {
 	}
 
 	/**
+	 * Process SGF editor code blocks (```sgf-edit)
+	 */
+	processSGFEditBlock(
+		source: string,
+		el: HTMLElement,
+		ctx: MarkdownPostProcessorContext
+	) {
+		this.renderGoBoard(el, source.trim(), true, ctx);
+	}
+
+	/**
 	 * Process SGF file embeds (![[file.sgf]])
 	 */
 	async processSGFFileEmbed(
@@ -451,7 +568,7 @@ export default class GoBoardViewerPlugin extends Plugin {
 	/**
 	 * Render a Go board with the given SGF content using Sabaki
 	 */
-	public renderGoBoard(container: HTMLElement, sgfContent: string) {
+	public renderGoBoard(container: HTMLElement, sgfContent: string, editMode: boolean = false, ctx?: MarkdownPostProcessorContext) {
 		try {
 			// Parse SGF
 			const gameTrees = sgf.parse(sgfContent) as SGFGameTree[];
@@ -957,6 +1074,16 @@ export default class GoBoardViewerPlugin extends Plugin {
 				console.debug('SignMap:', signMap);
 				console.debug('Board size:', boardSize);
 
+				// Get current node for edit mode
+				let currentNode: SGFNode;
+				if (moveNumber === 0) {
+					currentNode = rootNode;
+				} else if (moveNumber > 0 && moveNumber <= allMoves.length) {
+					currentNode = allMoves[moveNumber - 1].node;
+				} else {
+					currentNode = rootNode;
+				}
+
 				// Get comment from the last displayed move
 				let comment = '';
 				let hasVariations = false;
@@ -997,7 +1124,12 @@ export default class GoBoardViewerPlugin extends Plugin {
 					showCoordinates: true,
 					busy: false,
 					fuzzyStonePlacement: false,
-					animateStonePlacement: false
+					animateStonePlacement: false,
+					...(editMode && {
+						onVertexClick: (_evt: MouseEvent, vertex: [number, number]) => {
+							this.handleVertexClick(vertex, currentNode, allMoves, moveNumber, renderBoard);
+						}
+					})
 				};
 
 				console.debug('Goban props:', gobanProps);
@@ -1102,6 +1234,52 @@ export default class GoBoardViewerPlugin extends Plugin {
 				}
 
 				controlsContainer.insertBefore(infoDiv, controlsContainer.firstChild);
+
+				// Add SGF output in edit mode
+				if (editMode) {
+					const existingSgfOutput = controlsContainer.querySelector('.goboard-sgf-output');
+					if (existingSgfOutput) {
+						existingSgfOutput.remove();
+					}
+
+					const sgfOutputContainer = controlsContainer.createDiv({ cls: 'goboard-sgf-output' });
+					const sgfLabel = sgfOutputContainer.createEl('strong');
+					sgfLabel.textContent = 'SGF output:';
+
+					const sgfTextarea = sgfOutputContainer.createEl('textarea');
+					sgfTextarea.className = 'goboard-sgf-textarea';
+					sgfTextarea.readOnly = true;
+					sgfTextarea.value = sgf.stringify([rootNode]);
+
+					const copyBtn = sgfOutputContainer.createEl('button');
+					copyBtn.className = 'goboard-btn goboard-btn-copy';
+					copyBtn.textContent = '📋 Copy SGF';
+					copyBtn.onclick = () => {
+						navigator.clipboard.writeText(sgfTextarea.value);
+						copyBtn.textContent = '✓ Copied!';
+						setTimeout(() => {
+							copyBtn.textContent = '📋 Copy SGF';
+						}, 2000);
+					};
+
+					controlsContainer.appendChild(sgfOutputContainer);
+
+					// Add delete button in edit mode
+					const existingDeleteBtn = controlsContainer.querySelector('.goboard-delete-container');
+					if (existingDeleteBtn) {
+						existingDeleteBtn.remove();
+					}
+
+					const deleteContainer = controlsContainer.createDiv({ cls: 'goboard-delete-container' });
+					const btnDeleteFromHere = deleteContainer.createEl('button');
+					btnDeleteFromHere.className = 'goboard-btn goboard-btn-delete';
+					btnDeleteFromHere.textContent = '🗑 Delete from here';
+					btnDeleteFromHere.onclick = () => {
+						this.deleteFromCurrentNode(currentNode, renderBoard);
+					};
+
+					controlsContainer.appendChild(deleteContainer);
+				}
 
 				// Update variation selection UI
 				let variationContainer = controlsContainer.querySelector('.goboard-variations');

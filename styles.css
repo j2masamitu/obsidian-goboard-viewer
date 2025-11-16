@@ -524,3 +524,49 @@ body {
 .theme-dark .goboard-display .shudan-goban {
   background: #FFFFFF;
 }
+
+/* SGF Edit Mode Styles */
+.goboard-sgf-output {
+  margin-top: 1em;
+  padding: 1em;
+  background: var(--background-secondary);
+  border-radius: 6px;
+  border-left: 4px solid var(--interactive-accent);
+}
+
+.goboard-sgf-output strong {
+  display: block;
+  margin-bottom: 0.5em;
+  color: var(--text-normal);
+  font-size: 14px;
+}
+
+.goboard-sgf-textarea {
+  width: 100%;
+  min-height: 120px;
+  max-height: 300px;
+  padding: 0.75em;
+  font-family: var(--font-monospace);
+  font-size: 12px;
+  background: var(--background-primary);
+  color: var(--text-normal);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  resize: vertical;
+  box-sizing: border-box;
+  margin-bottom: 0.5em;
+}
+
+.goboard-btn-delete {
+  background-color: var(--background-modifier-error);
+  color: var(--text-on-accent);
+}
+
+.goboard-btn-delete:hover {
+  background-color: var(--background-modifier-error-hover);
+}
+
+.goboard-btn-copy {
+  width: 100%;
+  margin-top: 0.5em;
+}
