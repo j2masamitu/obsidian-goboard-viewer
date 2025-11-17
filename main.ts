@@ -1308,7 +1308,7 @@ class GoBoardSettingTab extends PluginSettingTab {
 		containerEl.empty();
 
 		new Setting(containerEl)
-			.setName('Display settings')
+			.setName('Display')
 			.setHeading();
 
 		new Setting(containerEl)
