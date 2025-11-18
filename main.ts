@@ -102,54 +102,163 @@ export default class GoBoardViewerPlugin extends Plugin {
 	}
 
 	/**
-	 * Handle vertex click in edit mode - add a move or create a variation
+	 * Handle vertex click in edit mode - add a move or marker depending on mode
+	 * Returns the new move number if a move was added to the main line, otherwise null
 	 */
 	private handleVertexClick(
 		vertex: [number, number],
 		currentNode: SGFNode,
 		allMoves: Array<{ node: SGFNode; moveNum: number; variations: SGFNode[] }>,
 		moveNumber: number,
-		renderBoard: () => void
-	): void {
+		rebuildMoveTree: () => void,
+		mode: string,
+		labelText: string
+	): number | null {
 		const point = this.vertex2point(vertex);
 
-		// Determine whose turn it is
-		const nextPlayer = this.getNextPlayer(currentNode, allMoves, moveNumber);
-		const moveProperty = nextPlayer === 'B' ? 'B' : 'W';
+		console.debug('handleVertexClick - mode:', mode, 'moveNumber:', moveNumber, 'currentNode:', currentNode);
 
-		// Check if there's already a move at this location from current node
-		const existingChild = currentNode.children?.find((child: SGFNode) => {
-			const childMove = child.data?.[moveProperty];
-			return childMove && Array.isArray(childMove) && childMove[0] === point;
-		});
+		// Handle different modes
+		if (mode === 'move') {
+			// Move mode - add a stone as a move
+			const nextPlayer = this.getNextPlayer(currentNode, allMoves, moveNumber);
+			const moveProperty = nextPlayer === 'B' ? 'B' : 'W';
 
-		if (existingChild) {
-			// Move already exists, don't add duplicate
-			console.debug('Move already exists at this position');
-			return;
-		}
+			// Check if there's already a move at this location from current node
+			const existingChild = currentNode.children?.find((child: SGFNode) => {
+				const childMove = child.data?.[moveProperty];
+				return childMove && Array.isArray(childMove) && childMove[0] === point;
+			});
 
-		// Check if current node already has a move
-		if (currentNode.children && currentNode.children.length > 0) {
-			// Create a variation
+			if (existingChild) {
+				console.debug('Move already exists at this position');
+				return null;
+			}
+
+			// Create the new move node
 			const newNode: SGFNode = {
 				data: { [moveProperty]: [point] },
 				children: []
 			};
-			currentNode.children.push(newNode);
-			console.debug('Created variation at', point);
+
+			// Check if current node has children
+			if (!currentNode.children || currentNode.children.length === 0) {
+				currentNode.children = [newNode];
+				console.debug(`Added move at ${point} as main line continuation`);
+				rebuildMoveTree();
+				return moveNumber + 1;
+			} else {
+				currentNode.children.push(newNode);
+				console.debug(`Created variation at ${point}`);
+				rebuildMoveTree();
+				return null;
+			}
+		} else if (mode === 'black' || mode === 'white') {
+			// Add/remove/replace setup stone (AB or AW)
+			const property = mode === 'black' ? 'AB' : 'AW';
+			const oppositeProperty = mode === 'black' ? 'AW' : 'AB';
+
+			if (!currentNode.data) {
+				currentNode.data = {};
+			}
+
+			// Check if same color stone already exists at this point
+			if (currentNode.data[property] && currentNode.data[property].includes(point)) {
+				// Same color stone exists - remove it (toggle off)
+				currentNode.data[property] = currentNode.data[property].filter((p: string) => p !== point);
+				console.debug(`Removed ${mode} stone at ${point}`);
+			} else {
+				// Remove opposite color stone if exists (replace)
+				if (currentNode.data[oppositeProperty]) {
+					currentNode.data[oppositeProperty] = currentNode.data[oppositeProperty].filter((p: string) => p !== point);
+				}
+
+				// Add stone
+				if (!currentNode.data[property]) {
+					currentNode.data[property] = [];
+				}
+				currentNode.data[property].push(point);
+				console.debug(`Added ${mode} stone at ${point}`);
+			}
+			return null;
 		} else {
-			// Add first move
-			const newNode: SGFNode = {
-				data: { [moveProperty]: [point] },
-				children: []
-			};
-			currentNode.children = [newNode];
-			console.debug('Added move at', point);
-		}
+			// Add/remove/replace marker
+			let property: string;
+			let value: string;
 
-		// Re-render the board
-		renderBoard();
+			switch (mode) {
+				case 'triangle':
+					property = 'TR';
+					value = point;
+					break;
+				case 'square':
+					property = 'SQ';
+					value = point;
+					break;
+				case 'circle':
+					property = 'CR';
+					value = point;
+					break;
+				case 'mark':
+					property = 'MA';
+					value = point;
+					break;
+				case 'label':
+					property = 'LB';
+					value = `${point}:${labelText}`;
+					break;
+				default:
+					return null;
+			}
+
+			if (!currentNode.data) {
+				currentNode.data = {};
+			}
+
+			// Check if same marker already exists at this point
+			let sameMarkerExists = false;
+			if (mode === 'label') {
+				// For labels, check if same label text exists
+				if (currentNode.data[property]) {
+					sameMarkerExists = currentNode.data[property].some((item: string) => item === value);
+				}
+			} else {
+				// For other markers, check if marker exists at point
+				if (currentNode.data[property]) {
+					sameMarkerExists = currentNode.data[property].includes(point);
+				}
+			}
+
+			if (sameMarkerExists) {
+				// Same marker exists - remove it (toggle off)
+				if (mode === 'label') {
+					currentNode.data[property] = currentNode.data[property].filter((item: string) => item !== value);
+				} else {
+					currentNode.data[property] = currentNode.data[property].filter((p: string) => p !== point);
+				}
+				console.debug(`Toggled off ${mode} at ${point}`);
+			} else {
+				// Different or no marker - remove all markers at this point and add new one
+				const markerProperties = ['TR', 'SQ', 'CR', 'MA', 'LB'];
+				markerProperties.forEach(prop => {
+					if (currentNode.data && currentNode.data[prop]) {
+						if (prop === 'LB') {
+							currentNode.data[prop] = currentNode.data[prop]!.filter((item: string) => !item.startsWith(`${point}:`));
+						} else {
+							currentNode.data[prop] = currentNode.data[prop]!.filter((p: string) => p !== point);
+						}
+					}
+				});
+
+				// Add the new marker
+				if (!currentNode.data[property]) {
+					currentNode.data[property] = [];
+				}
+				currentNode.data[property]!.push(value);
+				console.debug(`Added ${mode} at ${point}`);
+			}
+			return null;
+		}
 	}
 
 	/**
@@ -182,17 +291,51 @@ export default class GoBoardViewerPlugin extends Plugin {
 
 	/**
 	 * Delete current node and all its descendants
+	 * Returns the new move number after deletion
 	 */
 	private deleteFromCurrentNode(
-		currentNode: SGFNode,
-		renderBoard: () => void
-	): void {
-		// Remove all children from current node
-		if (currentNode.children) {
-			currentNode.children = [];
-			console.debug('Deleted all moves from current position');
-			renderBoard();
+		rootNode: SGFNode,
+		allMoves: Array<{ node: SGFNode; moveNum: number; variations: SGFNode[] }>,
+		moveNumber: number,
+		rebuildMoveTree: () => void
+	): number {
+		if (moveNumber === 0) {
+			// At root - delete all children
+			if (rootNode.children) {
+				rootNode.children = [];
+				console.debug('Deleted all moves from root');
+			}
+			rebuildMoveTree();
+			return 0;
 		}
+
+		// Find parent node
+		let parentNode: SGFNode;
+		if (moveNumber === 1) {
+			// Parent is root
+			parentNode = rootNode;
+		} else {
+			// Parent is the previous move
+			parentNode = allMoves[moveNumber - 2].node;
+		}
+
+		// Get current node
+		const currentNode = allMoves[moveNumber - 1].node;
+
+		// Remove current node from parent's children
+		if (parentNode.children) {
+			const index = parentNode.children.indexOf(currentNode);
+			if (index !== -1) {
+				parentNode.children.splice(index, 1);
+				console.debug(`Deleted node at move ${moveNumber}`);
+			}
+		}
+
+		// Rebuild move tree
+		rebuildMoveTree();
+
+		// Move back to parent
+		return moveNumber - 1;
 	}
 
 	async onload() {
@@ -1066,6 +1209,10 @@ export default class GoBoardViewerPlugin extends Plugin {
 			// Track if zoom has been applied
 			let zoomApplied = false;
 
+			// Edit mode state
+			let currentMode = 'move';
+			let currentLabelText = 'A';
+
 			// Render function
 			const renderBoard = () => {
 				const signMap = getBoardState();
@@ -1127,7 +1274,11 @@ export default class GoBoardViewerPlugin extends Plugin {
 					animateStonePlacement: false,
 					...(editMode && {
 						onVertexClick: (_evt: MouseEvent, vertex: [number, number]) => {
-							this.handleVertexClick(vertex, currentNode, allMoves, moveNumber, renderBoard);
+							const newMoveNumber = this.handleVertexClick(vertex, currentNode, allMoves, moveNumber, rebuildMoveTree, currentMode, currentLabelText);
+							if (newMoveNumber !== null) {
+								moveNumber = newMoveNumber;
+							}
+							renderBoard();
 						}
 					})
 				};
@@ -1235,8 +1386,85 @@ export default class GoBoardViewerPlugin extends Plugin {
 
 				controlsContainer.insertBefore(infoDiv, controlsContainer.firstChild);
 
-				// Add SGF output in edit mode
+				// Add edit mode controls
 				if (editMode) {
+					// Add mode selector
+					const existingModeSelector = controlsContainer.querySelector('.goboard-mode-selector');
+					if (existingModeSelector) {
+						existingModeSelector.remove();
+					}
+
+					const modeSelectorContainer = controlsContainer.createDiv({ cls: 'goboard-mode-selector' });
+					const modeLabel = modeSelectorContainer.createEl('strong');
+					modeLabel.textContent = 'Click mode: ';
+
+					const modeSelect = modeSelectorContainer.createEl('select');
+					modeSelect.className = 'goboard-mode-select';
+					const modes = [
+						{ value: 'move', label: 'Move' },
+						{ value: 'black', label: 'Black Stone' },
+						{ value: 'white', label: 'White Stone' },
+						{ value: 'triangle', label: 'Triangle' },
+						{ value: 'square', label: 'Square' },
+						{ value: 'circle', label: 'Circle' },
+						{ value: 'mark', label: 'Mark (X)' },
+						{ value: 'label', label: 'Label' }
+					];
+
+					modes.forEach(mode => {
+						const option = modeSelect.createEl('option');
+						option.value = mode.value;
+						option.textContent = mode.label;
+					});
+
+					// Restore current mode selection
+					modeSelect.value = currentMode;
+
+					// Add label input (shown only when Label mode is selected)
+					const labelInputContainer = modeSelectorContainer.createDiv({ cls: 'goboard-label-input-container' });
+					labelInputContainer.style.display = currentMode === 'label' ? 'inline' : 'none';
+					const labelInputLabel = labelInputContainer.createEl('span');
+					labelInputLabel.textContent = ' Text: ';
+					const labelInput = labelInputContainer.createEl('input');
+					labelInput.type = 'text';
+					labelInput.className = 'goboard-label-input';
+					labelInput.maxLength = 3;
+					labelInput.value = currentLabelText;
+
+					modeSelect.addEventListener('change', () => {
+						currentMode = modeSelect.value;
+						if (modeSelect.value === 'label') {
+							labelInputContainer.style.display = 'inline';
+						} else {
+							labelInputContainer.style.display = 'none';
+						}
+					});
+
+					labelInput.addEventListener('input', () => {
+						currentLabelText = labelInput.value || 'A';
+					});
+
+					controlsContainer.appendChild(modeSelectorContainer);
+
+					// Add delete button in edit mode
+					const existingDeleteBtn = controlsContainer.querySelector('.goboard-delete-container');
+					if (existingDeleteBtn) {
+						existingDeleteBtn.remove();
+					}
+
+					const deleteContainer = controlsContainer.createDiv({ cls: 'goboard-delete-container' });
+					const btnDeleteFromHere = deleteContainer.createEl('button');
+					btnDeleteFromHere.className = 'goboard-btn goboard-btn-delete';
+					btnDeleteFromHere.textContent = '🗑 Delete from here';
+					btnDeleteFromHere.onclick = () => {
+						const newMoveNumber = this.deleteFromCurrentNode(rootNode, allMoves, moveNumber, rebuildMoveTree);
+						moveNumber = newMoveNumber;
+						renderBoard();
+					};
+
+					controlsContainer.appendChild(deleteContainer);
+
+					// Add SGF output
 					const existingSgfOutput = controlsContainer.querySelector('.goboard-sgf-output');
 					if (existingSgfOutput) {
 						existingSgfOutput.remove();
@@ -1251,34 +1479,43 @@ export default class GoBoardViewerPlugin extends Plugin {
 					sgfTextarea.readOnly = true;
 					sgfTextarea.value = sgf.stringify([rootNode]);
 
-					const copyBtn = sgfOutputContainer.createEl('button');
-					copyBtn.className = 'goboard-btn goboard-btn-copy';
-					copyBtn.textContent = '📋 Copy SGF';
-					copyBtn.onclick = () => {
-						navigator.clipboard.writeText(sgfTextarea.value);
-						copyBtn.textContent = '✓ Copied!';
-						setTimeout(() => {
-							copyBtn.textContent = '📋 Copy SGF';
-						}, 2000);
-					};
+					// Add button container for write and copy buttons
+					const btnContainer = sgfOutputContainer.createDiv({ cls: 'goboard-sgf-buttons' });
 
-					controlsContainer.appendChild(sgfOutputContainer);
+					// Add write to note button (only if ctx is available)
+					if (ctx) {
+						const writeBtn = btnContainer.createEl('button');
+						writeBtn.className = 'goboard-btn goboard-btn-write';
+						writeBtn.textContent = '💾 Write to Note';
+						writeBtn.onclick = async () => {
+							try {
+								const file = this.app.vault.getAbstractFileByPath(ctx.sourcePath);
+								if (file instanceof TFile) {
+									const content = await this.app.vault.read(file);
+									const newSgf = sgfTextarea.value;
 
-					// Add delete button in edit mode
-					const existingDeleteBtn = controlsContainer.querySelector('.goboard-delete-container');
-					if (existingDeleteBtn) {
-						existingDeleteBtn.remove();
+									// Find and replace the sgf-edit code block
+									const regex = /```sgf-edit\n[\s\S]*?\n```/i;
+									const newContent = content.replace(regex, `\`\`\`sgf-edit\n${newSgf}\n\`\`\``);
+
+									await this.app.vault.modify(file, newContent);
+									writeBtn.textContent = '✓ Written!';
+									setTimeout(() => {
+										writeBtn.textContent = '💾 Write to Note';
+									}, 2000);
+								}
+							} catch (error) {
+								console.error('Error writing to note:', error);
+								writeBtn.textContent = '✗ Error';
+								setTimeout(() => {
+									writeBtn.textContent = '💾 Write to Note';
+								}, 2000);
+							}
+						};
 					}
 
-					const deleteContainer = controlsContainer.createDiv({ cls: 'goboard-delete-container' });
-					const btnDeleteFromHere = deleteContainer.createEl('button');
-					btnDeleteFromHere.className = 'goboard-btn goboard-btn-delete';
-					btnDeleteFromHere.textContent = '🗑 Delete from here';
-					btnDeleteFromHere.onclick = () => {
-						this.deleteFromCurrentNode(currentNode, renderBoard);
-					};
 
-					controlsContainer.appendChild(deleteContainer);
+					controlsContainer.appendChild(sgfOutputContainer);
 				}
 
 				// Update variation selection UI
