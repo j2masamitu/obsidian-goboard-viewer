@@ -93,6 +93,251 @@ export default class GoBoardViewerPlugin extends Plugin {
 		return { x, y };
 	}
 
+	/**
+	 * Convert vertex coordinates [x, y] to SGF point notation (e.g., "dd")
+	 */
+	private vertex2point(vertex: [number, number]): string {
+		const [x, y] = vertex;
+		return String.fromCharCode(97 + x) + String.fromCharCode(97 + y);
+	}
+
+	/**
+	 * Handle vertex click in edit mode - add a move or marker depending on mode
+	 * Returns the new move number if a move was added to the main line, otherwise null
+	 */
+	private handleVertexClick(
+		vertex: [number, number],
+		currentNode: SGFNode,
+		allMoves: Array<{ node: SGFNode; moveNum: number; variations: SGFNode[] }>,
+		moveNumber: number,
+		rebuildMoveTree: () => void,
+		mode: string,
+		labelText: string
+	): number | null {
+		const point = this.vertex2point(vertex);
+
+		console.debug('handleVertexClick - mode:', mode, 'moveNumber:', moveNumber, 'currentNode:', currentNode);
+
+		// Handle different modes
+		if (mode === 'move') {
+			// Move mode - add a stone as a move
+			const nextPlayer = this.getNextPlayer(currentNode, allMoves, moveNumber);
+			const moveProperty = nextPlayer === 'B' ? 'B' : 'W';
+
+			// Check if there's already a move at this location from current node
+			const existingChild = currentNode.children?.find((child: SGFNode) => {
+				const childMove = child.data?.[moveProperty];
+				return childMove && Array.isArray(childMove) && childMove[0] === point;
+			});
+
+			if (existingChild) {
+				console.debug('Move already exists at this position');
+				return null;
+			}
+
+			// Create the new move node
+			const newNode: SGFNode = {
+				data: { [moveProperty]: [point] },
+				children: []
+			};
+
+			// Check if current node has children
+			if (!currentNode.children || currentNode.children.length === 0) {
+				currentNode.children = [newNode];
+				console.debug(`Added move at ${point} as main line continuation`);
+				rebuildMoveTree();
+				return moveNumber + 1;
+			} else {
+				currentNode.children.push(newNode);
+				console.debug(`Created variation at ${point}`);
+				rebuildMoveTree();
+				return null;
+			}
+		} else if (mode === 'black' || mode === 'white') {
+			// Add/remove/replace setup stone (AB or AW)
+			const property = mode === 'black' ? 'AB' : 'AW';
+			const oppositeProperty = mode === 'black' ? 'AW' : 'AB';
+
+			if (!currentNode.data) {
+				currentNode.data = {};
+			}
+
+			// Check if same color stone already exists at this point
+			if (currentNode.data[property] && currentNode.data[property].includes(point)) {
+				// Same color stone exists - remove it (toggle off)
+				currentNode.data[property] = currentNode.data[property].filter((p: string) => p !== point);
+				console.debug(`Removed ${mode} stone at ${point}`);
+			} else {
+				// Remove opposite color stone if exists (replace)
+				if (currentNode.data[oppositeProperty]) {
+					currentNode.data[oppositeProperty] = currentNode.data[oppositeProperty].filter((p: string) => p !== point);
+				}
+
+				// Add stone
+				if (!currentNode.data[property]) {
+					currentNode.data[property] = [];
+				}
+				currentNode.data[property].push(point);
+				console.debug(`Added ${mode} stone at ${point}`);
+			}
+			return null;
+		} else {
+			// Add/remove/replace marker
+			let property: string;
+			let value: string;
+
+			switch (mode) {
+				case 'triangle':
+					property = 'TR';
+					value = point;
+					break;
+				case 'square':
+					property = 'SQ';
+					value = point;
+					break;
+				case 'circle':
+					property = 'CR';
+					value = point;
+					break;
+				case 'mark':
+					property = 'MA';
+					value = point;
+					break;
+				case 'label':
+					property = 'LB';
+					value = `${point}:${labelText}`;
+					break;
+				default:
+					return null;
+			}
+
+			if (!currentNode.data) {
+				currentNode.data = {};
+			}
+
+			// Check if same marker already exists at this point
+			let sameMarkerExists = false;
+			if (mode === 'label') {
+				// For labels, check if same label text exists
+				if (currentNode.data[property]) {
+					sameMarkerExists = currentNode.data[property].some((item: string) => item === value);
+				}
+			} else {
+				// For other markers, check if marker exists at point
+				if (currentNode.data[property]) {
+					sameMarkerExists = currentNode.data[property].includes(point);
+				}
+			}
+
+			if (sameMarkerExists) {
+				// Same marker exists - remove it (toggle off)
+				if (mode === 'label') {
+					currentNode.data[property] = currentNode.data[property].filter((item: string) => item !== value);
+				} else {
+					currentNode.data[property] = currentNode.data[property].filter((p: string) => p !== point);
+				}
+				console.debug(`Toggled off ${mode} at ${point}`);
+			} else {
+				// Different or no marker - remove all markers at this point and add new one
+				const markerProperties = ['TR', 'SQ', 'CR', 'MA', 'LB'];
+				markerProperties.forEach(prop => {
+					if (currentNode.data && currentNode.data[prop]) {
+						if (prop === 'LB') {
+							currentNode.data[prop] = currentNode.data[prop]!.filter((item: string) => !item.startsWith(`${point}:`));
+						} else {
+							currentNode.data[prop] = currentNode.data[prop]!.filter((p: string) => p !== point);
+						}
+					}
+				});
+
+				// Add the new marker
+				if (!currentNode.data[property]) {
+					currentNode.data[property] = [];
+				}
+				currentNode.data[property]!.push(value);
+				console.debug(`Added ${mode} at ${point}`);
+			}
+			return null;
+		}
+	}
+
+	/**
+	 * Determine the next player based on current position
+	 */
+	private getNextPlayer(
+		currentNode: SGFNode,
+		allMoves: Array<{ node: SGFNode; moveNum: number; variations: SGFNode[] }>,
+		moveNumber: number
+	): 'B' | 'W' {
+		// If we're at the root or no moves yet, black plays first
+		if (moveNumber === 0) {
+			return 'B';
+		}
+
+		// Get the last move's player by checking the node
+		const lastMove = allMoves[moveNumber - 1];
+		if (lastMove && lastMove.node.data) {
+			// Check if it's a black or white move
+			if (lastMove.node.data.B) {
+				return 'W'; // Last was black, next is white
+			} else if (lastMove.node.data.W) {
+				return 'B'; // Last was white, next is black
+			}
+		}
+
+		// Default to black
+		return 'B';
+	}
+
+	/**
+	 * Delete current node and all its descendants
+	 * Returns the new move number after deletion
+	 */
+	private deleteFromCurrentNode(
+		rootNode: SGFNode,
+		allMoves: Array<{ node: SGFNode; moveNum: number; variations: SGFNode[] }>,
+		moveNumber: number,
+		rebuildMoveTree: () => void
+	): number {
+		if (moveNumber === 0) {
+			// At root - delete all children
+			if (rootNode.children) {
+				rootNode.children = [];
+				console.debug('Deleted all moves from root');
+			}
+			rebuildMoveTree();
+			return 0;
+		}
+
+		// Find parent node
+		let parentNode: SGFNode;
+		if (moveNumber === 1) {
+			// Parent is root
+			parentNode = rootNode;
+		} else {
+			// Parent is the previous move
+			parentNode = allMoves[moveNumber - 2].node;
+		}
+
+		// Get current node
+		const currentNode = allMoves[moveNumber - 1].node;
+
+		// Remove current node from parent's children
+		if (parentNode.children) {
+			const index = parentNode.children.indexOf(currentNode);
+			if (index !== -1) {
+				parentNode.children.splice(index, 1);
+				console.debug(`Deleted node at move ${moveNumber}`);
+			}
+		}
+
+		// Rebuild move tree
+		rebuildMoveTree();
+
+		// Move back to parent
+		return moveNumber - 1;
+	}
+
 	async onload() {
 		console.debug('Loading Go Board Viewer plugin (Sabaki version)');
 
@@ -108,6 +353,10 @@ export default class GoBoardViewerPlugin extends Plugin {
 		// Register markdown code block processor for SGF (both lowercase and uppercase)
 		this.registerMarkdownCodeBlockProcessor('sgf', this.processSGFCodeBlock.bind(this));
 		this.registerMarkdownCodeBlockProcessor('SGF', this.processSGFCodeBlock.bind(this));
+
+		// Register markdown code block processor for SGF editor
+		this.registerMarkdownCodeBlockProcessor('sgf-edit', (source, el, ctx) => this.processSGFEditBlock(source, el, ctx));
+		this.registerMarkdownCodeBlockProcessor('SGF-EDIT', (source, el, ctx) => this.processSGFEditBlock(source, el, ctx));
 
 		// Register SGF file extension (both lowercase and uppercase)
 		this.registerExtensions(['sgf', 'SGF'], 'sgf');
@@ -322,13 +571,37 @@ export default class GoBoardViewerPlugin extends Plugin {
 
 	/**
 	 * Process SGF code blocks (```sgf ... ```)
+	 * Supports optional move parameter in first line:
+	 *   <!-- move=3 --> for move 3 in main line
 	 */
 	processSGFCodeBlock(
 		source: string,
 		el: HTMLElement,
 		ctx: MarkdownPostProcessorContext
 	) {
-		this.renderGoBoard(el, source.trim());
+		// Check for move parameter in first line
+		let initialMove = 0;
+		let sgfContent = source.trim();
+
+		// Look for HTML comment with move parameter
+		const moveMatch = sgfContent.match(/^<!--\s*move\s*=\s*(\d+)\s*-->\s*/);
+		if (moveMatch) {
+			initialMove = parseInt(moveMatch[1]);
+			sgfContent = sgfContent.replace(moveMatch[0], '').trim();
+		}
+
+		this.renderGoBoard(el, sgfContent, false, ctx, initialMove);
+	}
+
+	/**
+	 * Process SGF editor code blocks (```sgf-edit)
+	 */
+	processSGFEditBlock(
+		source: string,
+		el: HTMLElement,
+		ctx: MarkdownPostProcessorContext
+	) {
+		this.renderGoBoard(el, source.trim(), true, ctx);
 	}
 
 	/**
@@ -451,7 +724,7 @@ export default class GoBoardViewerPlugin extends Plugin {
 	/**
 	 * Render a Go board with the given SGF content using Sabaki
 	 */
-	public renderGoBoard(container: HTMLElement, sgfContent: string) {
+	public renderGoBoard(container: HTMLElement, sgfContent: string, editMode: boolean = false, ctx?: MarkdownPostProcessorContext, initialMove: number = 0) {
 		try {
 			// Parse SGF
 			const gameTrees = sgf.parse(sgfContent) as SGFGameTree[];
@@ -583,6 +856,11 @@ export default class GoBoardViewerPlugin extends Plugin {
 				wrapper.appendChild(infoSection);
 			}
 
+			// Create auto-play container (will be populated later, only in viewer mode)
+			const autoPlayContainerPlaceholder = document.createElement('div');
+			autoPlayContainerPlaceholder.className = 'goboard-autoplay-placeholder';
+			wrapper.appendChild(autoPlayContainerPlaceholder);
+
 			// Create board container
 			const boardContainer = document.createElement('div');
 			boardContainer.className = 'goboard-display';
@@ -595,8 +873,10 @@ export default class GoBoardViewerPlugin extends Plugin {
 			controlsContainer.className = 'goboard-controls';
 			wrapper.appendChild(controlsContainer);
 
-			// Game state
-			let moveNumber = 0;
+			// Create comment display container (will be updated in renderBoard)
+			const commentDisplayContainer = document.createElement('div');
+			commentDisplayContainer.className = 'goboard-comment-display-container';
+			wrapper.appendChild(commentDisplayContainer);
 
 			// Build move tree with variations
 			interface MoveNode {
@@ -657,10 +937,11 @@ export default class GoBoardViewerPlugin extends Plugin {
 				allMoves.push(...moves);
 			};
 
-			// Initialize with main line
-			rootVariationIndex = 0;
-			currentVariationPath = [];
+			// Initialize move tree with main line
 			rebuildMoveTree();
+
+			// Set initial move number
+			let moveNumber = initialMove;
 
 			console.debug('Collected moves:', allMoves.length);
 
@@ -678,6 +959,31 @@ export default class GoBoardViewerPlugin extends Plugin {
 				} else if (moveNumber > 0 && moveNumber <= allMoves.length) {
 					const moveNode = allMoves[moveNumber - 1];
 					currentNodeData = moveNode.node?.data || {};
+				}
+
+				// Add last move marker (using circle for standard display)
+				if (moveNumber > 0 && moveNumber <= allMoves.length) {
+					const lastMove = allMoves[moveNumber - 1];
+					const lastMoveData = lastMove.node?.data || {};
+					let lastMoveVertex: [number, number] | null = null;
+
+					// Check if it's a black or white move
+					if (lastMoveData.B && Array.isArray(lastMoveData.B) && lastMoveData.B[0]) {
+						const coords = this.point2vertex(lastMoveData.B[0]);
+						if (coords.x >= 0 && coords.y >= 0 && coords.x < boardSize && coords.y < boardSize) {
+							lastMoveVertex = [coords.x, coords.y];
+						}
+					} else if (lastMoveData.W && Array.isArray(lastMoveData.W) && lastMoveData.W[0]) {
+						const coords = this.point2vertex(lastMoveData.W[0]);
+						if (coords.x >= 0 && coords.y >= 0 && coords.x < boardSize && coords.y < boardSize) {
+							lastMoveVertex = [coords.x, coords.y];
+						}
+					}
+
+					// Mark the last move with a circle marker (standard last move marker)
+					if (lastMoveVertex) {
+						markerMap[lastMoveVertex[1]][lastMoveVertex[0]] = { type: 'circle' };
+					}
 				}
 
 				// Process SGF marker properties
@@ -714,7 +1020,7 @@ export default class GoBoardViewerPlugin extends Plugin {
 					});
 				}
 
-				// MA - Mark (X)
+				// MA - Mark (X) - these override last move markers
 				if (currentNodeData.MA) {
 					const marks = Array.isArray(currentNodeData.MA) ? currentNodeData.MA : [currentNodeData.MA];
 					marks.forEach((point: string) => {
@@ -949,13 +1255,121 @@ export default class GoBoardViewerPlugin extends Plugin {
 			// Track if zoom has been applied
 			let zoomApplied = false;
 
+			// Edit mode state
+			let currentMode = 'move';
+			let currentLabelText = 'A';
+
+			// Function to update game info display
+			const updateGameInfoDisplay = () => {
+				const existingInfoSection = wrapper.querySelector('.goboard-game-info');
+				if (existingInfoSection) {
+					existingInfoSection.remove();
+				}
+
+				// Re-extract game information from rootNode
+				const nodeData = rootNode.data || {};
+				const updatedGameInfo = {
+					black: nodeData.PB ? nodeData.PB[0] : null,
+					white: nodeData.PW ? nodeData.PW[0] : null,
+					blackRank: nodeData.BR ? nodeData.BR[0] : null,
+					whiteRank: nodeData.WR ? nodeData.WR[0] : null,
+					result: nodeData.RE ? nodeData.RE[0] : null,
+					date: nodeData.DT ? nodeData.DT[0] : null,
+					event: nodeData.EV ? nodeData.EV[0] : null,
+					round: nodeData.RO ? nodeData.RO[0] : null,
+					place: nodeData.PC ? nodeData.PC[0] : null,
+					gameName: nodeData.GN ? nodeData.GN[0] : null,
+					komi: nodeData.KM ? nodeData.KM[0] : null,
+					handicap: nodeData.HA ? nodeData.HA[0] : null,
+					rules: nodeData.RU ? nodeData.RU[0] : null,
+				};
+
+				if (updatedGameInfo.black || updatedGameInfo.white || updatedGameInfo.event || updatedGameInfo.gameName) {
+					const infoSection = document.createElement('div');
+					infoSection.className = 'goboard-game-info';
+
+					if (updatedGameInfo.gameName) {
+						const titleEl = document.createElement('div');
+						titleEl.className = 'game-info-title';
+						titleEl.textContent = updatedGameInfo.gameName;
+						infoSection.appendChild(titleEl);
+					}
+
+					if (updatedGameInfo.event) {
+						const eventEl = document.createElement('div');
+						eventEl.className = 'game-info-event';
+						eventEl.textContent = updatedGameInfo.event;
+						if (updatedGameInfo.round) {
+							eventEl.textContent += ` - Round ${updatedGameInfo.round}`;
+						}
+						infoSection.appendChild(eventEl);
+					}
+
+					const playersEl = document.createElement('div');
+					playersEl.className = 'game-info-players';
+
+					if (updatedGameInfo.black || updatedGameInfo.white) {
+						const blackName = updatedGameInfo.black || 'Unknown';
+						const whiteName = updatedGameInfo.white || 'Unknown';
+						const blackRank = updatedGameInfo.blackRank ? ` (${updatedGameInfo.blackRank})` : '';
+						const whiteRank = updatedGameInfo.whiteRank ? ` (${updatedGameInfo.whiteRank})` : '';
+
+						const blackSpan = playersEl.createSpan({ cls: 'player-black' })
+						blackSpan.textContent = `⚫ ${blackName}${blackRank}`;
+						playersEl.appendText(' vs ');
+						const whiteSpan = playersEl.createSpan({ cls: 'player-white' })
+						whiteSpan.textContent = `⚪ ${whiteName}${whiteRank}`;
+						infoSection.appendChild(playersEl);
+					}
+
+					const detailsEl = document.createElement('div');
+					detailsEl.className = 'game-info-details';
+					const details = [];
+
+					if (updatedGameInfo.date) details.push(`Date: ${updatedGameInfo.date}`);
+					if (updatedGameInfo.place) details.push(`Place: ${updatedGameInfo.place}`);
+					if (updatedGameInfo.komi) details.push(`Komi: ${updatedGameInfo.komi}`);
+					if (updatedGameInfo.handicap) details.push(`Handicap: ${updatedGameInfo.handicap}`);
+					if (updatedGameInfo.rules) details.push(`Rules: ${updatedGameInfo.rules}`);
+					if (updatedGameInfo.result) details.push(`Result: ${updatedGameInfo.result}`);
+
+					if (details.length > 0) {
+						detailsEl.textContent = details.join(' • ');
+						infoSection.appendChild(detailsEl);
+					}
+
+					// Insert at the beginning of wrapper (before board container)
+					const boardContainer = wrapper.querySelector('.goboard-display');
+					if (boardContainer) {
+						wrapper.insertBefore(infoSection, boardContainer);
+					} else {
+						wrapper.appendChild(infoSection);
+					}
+				}
+			};
+
 			// Render function
 			const renderBoard = () => {
 				const signMap = getBoardState();
 
+				// Update game info display
+				if (editMode) {
+					updateGameInfoDisplay();
+				}
+
 				console.debug('Rendering board at move:', moveNumber);
 				console.debug('SignMap:', signMap);
 				console.debug('Board size:', boardSize);
+
+				// Get current node for edit mode
+				let currentNode: SGFNode;
+				if (moveNumber === 0) {
+					currentNode = rootNode;
+				} else if (moveNumber > 0 && moveNumber <= allMoves.length) {
+					currentNode = allMoves[moveNumber - 1].node;
+				} else {
+					currentNode = rootNode;
+				}
 
 				// Get comment from the last displayed move
 				let comment = '';
@@ -997,7 +1411,16 @@ export default class GoBoardViewerPlugin extends Plugin {
 					showCoordinates: true,
 					busy: false,
 					fuzzyStonePlacement: false,
-					animateStonePlacement: false
+					animateStonePlacement: false,
+					...(editMode && {
+						onVertexClick: (_evt: MouseEvent, vertex: [number, number]) => {
+							const newMoveNumber = this.handleVertexClick(vertex, currentNode, allMoves, moveNumber, rebuildMoveTree, currentMode, currentLabelText);
+							if (newMoveNumber !== null) {
+								moveNumber = newMoveNumber;
+							}
+							renderBoard();
+						}
+					})
 				};
 
 				console.debug('Goban props:', gobanProps);
@@ -1096,12 +1519,253 @@ export default class GoBoardViewerPlugin extends Plugin {
 					variationSpan.textContent = '(has variations)';
 				}
 
+				controlsContainer.insertBefore(infoDiv, controlsContainer.firstChild);
+
+				// Update comment display in separate container (below controls)
+				commentDisplayContainer.empty();
 				if (comment) {
-					const commentDiv = infoDiv.createDiv({ cls: 'goboard-comment' })
+					const commentDiv = commentDisplayContainer.createDiv({ cls: 'goboard-comment' })
 					commentDiv.textContent = comment;
 				}
 
-				controlsContainer.insertBefore(infoDiv, controlsContainer.firstChild);
+				// Add edit mode controls
+				if (editMode) {
+					// Add mode selector
+					const existingModeSelector = controlsContainer.querySelector('.goboard-mode-selector');
+					if (existingModeSelector) {
+						existingModeSelector.remove();
+					}
+
+					const modeSelectorContainer = controlsContainer.createDiv({ cls: 'goboard-mode-selector' });
+					const modeLabel = modeSelectorContainer.createEl('strong');
+					modeLabel.textContent = 'Click mode: ';
+
+					const modeSelect = modeSelectorContainer.createEl('select');
+					modeSelect.className = 'goboard-mode-select';
+					const modes = [
+						{ value: 'move', label: 'Move' },
+						{ value: 'black', label: 'Black Stone' },
+						{ value: 'white', label: 'White Stone' },
+						{ value: 'triangle', label: 'Triangle' },
+						{ value: 'square', label: 'Square' },
+						{ value: 'circle', label: 'Circle' },
+						{ value: 'mark', label: 'Mark (X)' },
+						{ value: 'label', label: 'Label' }
+					];
+
+					modes.forEach(mode => {
+						const option = modeSelect.createEl('option');
+						option.value = mode.value;
+						option.textContent = mode.label;
+					});
+
+					// Restore current mode selection
+					modeSelect.value = currentMode;
+
+					// Add label input (shown only when Label mode is selected)
+					const labelInputContainer = modeSelectorContainer.createDiv({ cls: 'goboard-label-input-container' });
+					labelInputContainer.style.display = currentMode === 'label' ? 'inline' : 'none';
+					const labelInputLabel = labelInputContainer.createEl('span');
+					labelInputLabel.textContent = ' Text: ';
+					const labelInput = labelInputContainer.createEl('input');
+					labelInput.type = 'text';
+					labelInput.className = 'goboard-label-input';
+					labelInput.maxLength = 3;
+					labelInput.value = currentLabelText;
+
+					modeSelect.addEventListener('change', () => {
+						currentMode = modeSelect.value;
+						if (modeSelect.value === 'label') {
+							labelInputContainer.style.display = 'inline';
+						} else {
+							labelInputContainer.style.display = 'none';
+						}
+					});
+
+					labelInput.addEventListener('input', () => {
+						currentLabelText = labelInput.value || 'A';
+					});
+
+					controlsContainer.appendChild(modeSelectorContainer);
+
+					// Add comment editor
+					const existingCommentEditor = controlsContainer.querySelector('.goboard-comment-editor');
+					if (existingCommentEditor) {
+						existingCommentEditor.remove();
+					}
+
+					const commentEditor = controlsContainer.createDiv({ cls: 'goboard-comment-editor' });
+					const commentEditorTitle = commentEditor.createEl('strong');
+					commentEditorTitle.textContent = 'Comment for current position:';
+					const commentTextarea = commentEditor.createEl('textarea');
+					commentTextarea.className = 'goboard-comment-edit';
+					commentTextarea.value = comment;
+					commentTextarea.placeholder = 'Enter comment for this position...';
+
+					// Capture currentNode reference
+					const nodeToEdit = currentNode;
+
+					const saveCommentBtn = commentEditor.createEl('button');
+					saveCommentBtn.className = 'goboard-btn goboard-btn-save';
+					saveCommentBtn.textContent = '💾 Save Comment';
+					saveCommentBtn.onclick = () => {
+						if (!nodeToEdit.data) {
+							nodeToEdit.data = {};
+						}
+						if (commentTextarea.value.trim()) {
+							nodeToEdit.data.C = [commentTextarea.value];
+						} else {
+							delete nodeToEdit.data.C;
+						}
+						renderBoard();
+						saveCommentBtn.textContent = '✓ Saved!';
+						setTimeout(() => {
+							saveCommentBtn.textContent = '💾 Save Comment';
+						}, 1000);
+					};
+
+					controlsContainer.appendChild(commentEditor);
+
+					// Add game info editor
+					const existingGameInfoEditor = controlsContainer.querySelector('.goboard-game-info-editor');
+					if (existingGameInfoEditor) {
+						existingGameInfoEditor.remove();
+					}
+
+					const gameInfoEditor = controlsContainer.createDiv({ cls: 'goboard-game-info-editor' });
+					const gameInfoTitle = gameInfoEditor.createEl('strong');
+					gameInfoTitle.textContent = 'Game Information:';
+
+					const gameInfoGrid = gameInfoEditor.createDiv({ cls: 'game-info-grid' });
+
+					// Store all input elements for batch save
+					const gameInfoInputs: HTMLInputElement[] = [];
+
+					// Modified helper function to store input references
+					const createInfoInput = (label: string, property: string, placeholder: string) => {
+						const row = gameInfoGrid.createDiv({ cls: 'game-info-row' });
+						const labelEl = row.createEl('label');
+						labelEl.textContent = label + ':';
+						const input = row.createEl('input');
+						input.type = 'text';
+						input.placeholder = placeholder;
+						input.value = rootNode.data?.[property]?.[0] || '';
+						input.dataset.property = property;
+						gameInfoInputs.push(input);
+					};
+
+					createInfoInput('Black Player', 'PB', 'Player name');
+					createInfoInput('Black Rank', 'BR', 'e.g. 5d');
+					createInfoInput('White Player', 'PW', 'Player name');
+					createInfoInput('White Rank', 'WR', 'e.g. 3d');
+					createInfoInput('Game Name', 'GN', 'Game title');
+					createInfoInput('Event', 'EV', 'Tournament name');
+					createInfoInput('Round', 'RO', 'Round number');
+					createInfoInput('Date', 'DT', 'YYYY-MM-DD');
+					createInfoInput('Place', 'PC', 'Location');
+					createInfoInput('Komi', 'KM', 'e.g. 6.5');
+					createInfoInput('Handicap', 'HA', 'Number of stones');
+					createInfoInput('Result', 'RE', 'e.g. B+3.5');
+					createInfoInput('Rules', 'RU', 'e.g. Japanese');
+
+					// Add save button for game info
+					const saveGameInfoBtn = gameInfoEditor.createEl('button');
+					saveGameInfoBtn.className = 'goboard-btn goboard-btn-save';
+					saveGameInfoBtn.textContent = '💾 Save Game Info';
+					saveGameInfoBtn.onclick = () => {
+						if (!rootNode.data) {
+							rootNode.data = {};
+						}
+						gameInfoInputs.forEach(input => {
+							const property = input.dataset.property;
+							if (property && rootNode.data) {
+								if (input.value.trim()) {
+									rootNode.data[property] = [input.value];
+								} else {
+									delete rootNode.data[property];
+								}
+							}
+						});
+						renderBoard();
+						saveGameInfoBtn.textContent = '✓ Saved!';
+						setTimeout(() => {
+							saveGameInfoBtn.textContent = '💾 Save Game Info';
+						}, 1000);
+					};
+
+					controlsContainer.appendChild(gameInfoEditor);
+
+					// Add delete button in edit mode
+					const existingDeleteBtn = controlsContainer.querySelector('.goboard-delete-container');
+					if (existingDeleteBtn) {
+						existingDeleteBtn.remove();
+					}
+
+					const deleteContainer = controlsContainer.createDiv({ cls: 'goboard-delete-container' });
+					const btnDeleteFromHere = deleteContainer.createEl('button');
+					btnDeleteFromHere.className = 'goboard-btn goboard-btn-delete';
+					btnDeleteFromHere.textContent = '🗑 Delete from here';
+					btnDeleteFromHere.onclick = () => {
+						const newMoveNumber = this.deleteFromCurrentNode(rootNode, allMoves, moveNumber, rebuildMoveTree);
+						moveNumber = newMoveNumber;
+						renderBoard();
+					};
+
+					controlsContainer.appendChild(deleteContainer);
+
+					// Add SGF output
+					const existingSgfOutput = controlsContainer.querySelector('.goboard-sgf-output');
+					if (existingSgfOutput) {
+						existingSgfOutput.remove();
+					}
+
+					const sgfOutputContainer = controlsContainer.createDiv({ cls: 'goboard-sgf-output' });
+					const sgfLabel = sgfOutputContainer.createEl('strong');
+					sgfLabel.textContent = 'SGF output:';
+
+					const sgfTextarea = sgfOutputContainer.createEl('textarea');
+					sgfTextarea.className = 'goboard-sgf-textarea';
+					sgfTextarea.readOnly = true;
+					sgfTextarea.value = sgf.stringify([rootNode]);
+
+					// Add button container for write and copy buttons
+					const btnContainer = sgfOutputContainer.createDiv({ cls: 'goboard-sgf-buttons' });
+
+					// Add write to note button (only if ctx is available)
+					if (ctx) {
+						const writeBtn = btnContainer.createEl('button');
+						writeBtn.className = 'goboard-btn goboard-btn-write';
+						writeBtn.textContent = '💾 Write to Note';
+						writeBtn.onclick = async () => {
+							try {
+								const file = this.app.vault.getAbstractFileByPath(ctx.sourcePath);
+								if (file instanceof TFile) {
+									const content = await this.app.vault.read(file);
+									const newSgf = sgfTextarea.value;
+
+									// Find and replace the sgf-edit code block
+									const regex = /```sgf-edit\n[\s\S]*?\n```/i;
+									const newContent = content.replace(regex, `\`\`\`sgf-edit\n${newSgf}\n\`\`\``);
+
+									await this.app.vault.modify(file, newContent);
+									writeBtn.textContent = '✓ Written!';
+									setTimeout(() => {
+										writeBtn.textContent = '💾 Write to Note';
+									}, 2000);
+								}
+							} catch (error) {
+								console.error('Error writing to note:', error);
+								writeBtn.textContent = '✗ Error';
+								setTimeout(() => {
+									writeBtn.textContent = '💾 Write to Note';
+								}, 2000);
+							}
+						};
+					}
+
+
+					controlsContainer.appendChild(sgfOutputContainer);
+				}
 
 				// Update variation selection UI
 				let variationContainer = controlsContainer.querySelector('.goboard-variations');
@@ -1212,6 +1876,111 @@ export default class GoBoardViewerPlugin extends Plugin {
 			btnContainer.appendChild(btnLast);
 
 			controlsContainer.appendChild(btnContainer);
+
+			// Add auto-play controls (only in viewer mode, not in edit mode)
+			// Place them above the board in the placeholder container
+			if (!editMode) {
+				let autoPlayInterval: ReturnType<typeof setInterval> | null = null;
+				let isPlaying = false;
+				let autoPlaySpeed = 2; // default 2 seconds per move
+
+				const autoPlayContainer = document.createElement('div');
+				autoPlayContainer.className = 'goboard-autoplay-controls';
+
+				// Auto-play button
+				const btnAutoPlay = document.createElement('button');
+				btnAutoPlay.className = 'goboard-btn goboard-btn-autoplay';
+				btnAutoPlay.textContent = '▶ Auto Play';
+				btnAutoPlay.onclick = () => {
+					if (isPlaying) {
+						// Stop auto-play
+						if (autoPlayInterval) {
+							clearInterval(autoPlayInterval);
+							autoPlayInterval = null;
+						}
+						isPlaying = false;
+						btnAutoPlay.textContent = '▶ Auto Play';
+						btnAutoPlay.classList.remove('playing');
+					} else {
+						// Start auto-play
+						isPlaying = true;
+						btnAutoPlay.textContent = '⏸ Pause';
+						btnAutoPlay.classList.add('playing');
+
+						autoPlayInterval = setInterval(() => {
+							const totalMoves = allMoves ? allMoves.length : 0;
+							if (moveNumber < totalMoves) {
+								moveNumber++;
+								renderBoard();
+							} else {
+								// Reached the end, stop auto-play
+								if (autoPlayInterval) {
+									clearInterval(autoPlayInterval);
+									autoPlayInterval = null;
+								}
+								isPlaying = false;
+								btnAutoPlay.textContent = '▶ Auto Play';
+								btnAutoPlay.classList.remove('playing');
+							}
+						}, autoPlaySpeed * 1000);
+					}
+				};
+
+				// Speed selector
+				const speedLabel = document.createElement('label');
+				speedLabel.className = 'goboard-autoplay-label';
+				speedLabel.textContent = 'Speed:';
+
+				const speedSelect = document.createElement('select');
+				speedSelect.className = 'goboard-autoplay-speed';
+				const speeds = [
+					{ value: 1, label: '1 sec/move' },
+					{ value: 2, label: '2 sec/move' },
+					{ value: 3, label: '3 sec/move' },
+					{ value: 5, label: '5 sec/move' },
+					{ value: 10, label: '10 sec/move' }
+				];
+
+				speeds.forEach(speed => {
+					const option = document.createElement('option');
+					option.value = String(speed.value);
+					option.textContent = speed.label;
+					if (speed.value === autoPlaySpeed) {
+						option.selected = true;
+					}
+					speedSelect.appendChild(option);
+				});
+
+				speedSelect.onchange = () => {
+					autoPlaySpeed = parseInt(speedSelect.value);
+					// If currently playing, restart with new speed
+					if (isPlaying && autoPlayInterval) {
+						clearInterval(autoPlayInterval);
+						autoPlayInterval = setInterval(() => {
+							const totalMoves = allMoves ? allMoves.length : 0;
+							if (moveNumber < totalMoves) {
+								moveNumber++;
+								renderBoard();
+							} else {
+								if (autoPlayInterval) {
+									clearInterval(autoPlayInterval);
+									autoPlayInterval = null;
+								}
+								isPlaying = false;
+								btnAutoPlay.textContent = '▶ Auto Play';
+								btnAutoPlay.classList.remove('playing');
+							}
+						}, autoPlaySpeed * 1000);
+					}
+				};
+
+				autoPlayContainer.appendChild(btnAutoPlay);
+				autoPlayContainer.appendChild(speedLabel);
+				autoPlayContainer.appendChild(speedSelect);
+
+				// Add to placeholder above the board
+				autoPlayContainerPlaceholder.appendChild(autoPlayContainer);
+			}
 
 			// Initial render
 			renderBoard();

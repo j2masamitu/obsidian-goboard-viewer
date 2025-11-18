@@ -397,6 +397,86 @@ body {
   color: var(--text-muted);
 }
 
+.goboard-comment-editor {
+  margin-bottom: 1em;
+  padding: 0.75em;
+  background: var(--background-secondary);
+  border-radius: 4px;
+}
+
+.goboard-comment-editor strong {
+  display: block;
+  margin-bottom: 0.5em;
+  color: var(--text-normal);
+}
+
+.goboard-btn-save {
+  margin-top: 0.5em;
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+}
+
+.goboard-btn-save:hover {
+  background: var(--interactive-accent-hover);
+}
+
+.goboard-comment-edit {
+  width: 100%;
+  min-height: 60px;
+  padding: 0.5em;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  background: var(--background-primary);
+  color: var(--text-normal);
+  font-family: var(--font-text);
+  resize: vertical;
+}
+
+.goboard-game-info-editor {
+  margin-bottom: 1em;
+  padding: 0.75em;
+  background: var(--background-secondary);
+  border-radius: 4px;
+}
+
+.goboard-game-info-editor strong {
+  display: block;
+  margin-bottom: 0.5em;
+  color: var(--text-normal);
+}
+
+.game-info-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5em;
+}
+
+.game-info-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25em;
+}
+
+.game-info-row label {
+  font-size: 0.85em;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.game-info-row input {
+  padding: 0.4em;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 3px;
+  background: var(--background-primary);
+  color: var(--text-normal);
+  font-size: 0.9em;
+}
+
+.game-info-row input:focus {
+  outline: none;
+  border-color: var(--interactive-accent);
+}
+
 .goboard-variations {
   background: var(--background-secondary);
   padding: 0.75em;
@@ -445,6 +525,7 @@ body {
   display: flex;
   gap: 0.5em;
   justify-content: center;
+  margin-bottom: 0.75em;
 }
 
 .goboard-btn {
@@ -466,6 +547,55 @@ body {
 .goboard-btn:active {
   background: var(--interactive-accent);
   transform: translateY(1px);
+}
+
+/* Auto-play controls */
+.goboard-autoplay-controls {
+  display: flex;
+  gap: 0.75em;
+  align-items: center;
+  justify-content: center;
+  padding: 0.75em;
+  background: var(--background-secondary);
+  border-radius: 4px;
+  margin-bottom: 1em;
+}
+
+.goboard-btn-autoplay {
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  padding: 0.6em 1.2em;
+  font-weight: 600;
+}
+
+.goboard-btn-autoplay:hover {
+  background: var(--interactive-accent-hover);
+}
+
+.goboard-btn-autoplay.playing {
+  background: var(--text-warning);
+  color: var(--text-on-accent);
+}
+
+.goboard-autoplay-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.goboard-autoplay-speed {
+  padding: 0.4em 0.6em;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  background: var(--background-primary);
+  color: var(--text-normal);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.goboard-autoplay-speed:focus {
+  outline: none;
+  border-color: var(--interactive-accent);
 }
 
 .goboard-error {
@@ -523,4 +653,50 @@ body {
 /* Dark mode adjustments */
 .theme-dark .goboard-display .shudan-goban {
   background: #FFFFFF;
+}
+
+/* SGF Edit Mode Styles */
+.goboard-sgf-output {
+  margin-top: 1em;
+  padding: 1em;
+  background: var(--background-secondary);
+  border-radius: 6px;
+  border-left: 4px solid var(--interactive-accent);
+}
+
+.goboard-sgf-output strong {
+  display: block;
+  margin-bottom: 0.5em;
+  color: var(--text-normal);
+  font-size: 14px;
+}
+
+.goboard-sgf-textarea {
+  width: 100%;
+  min-height: 120px;
+  max-height: 300px;
+  padding: 0.75em;
+  font-family: var(--font-monospace);
+  font-size: 12px;
+  background: var(--background-primary);
+  color: var(--text-normal);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  resize: vertical;
+  box-sizing: border-box;
+  margin-bottom: 0.5em;
+}
+
+.goboard-btn-delete {
+  background-color: var(--background-modifier-error);
+  color: var(--text-on-accent);
+}
+
+.goboard-btn-delete:hover {
+  background-color: var(--background-modifier-error-hover);
+}
+
+.goboard-btn-copy {
+  width: 100%;
+  margin-top: 0.5em;
 }
