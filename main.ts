@@ -436,15 +436,28 @@ export default class GoBoardViewerPlugin extends Plugin {
 		}
 		embed.setAttribute('data-sgf-processed', 'true');
 
-		const src = embed.getAttribute('src') || embed.getAttribute('alt');
+		const src = embed.getAttribute('src');
+		const alt = embed.getAttribute('alt');
+
 		if (!src || !src.toLowerCase().endsWith('.sgf')) {
 			return;
 		}
 
+		// Extract move parameter from alt attribute (e.g., alt="move=10")
+		let initialMove = 0;
+		const filePath = src;
+
+		if (alt) {
+			const moveMatch = alt.match(/move=(\d+)/);
+			if (moveMatch) {
+				initialMove = parseInt(moveMatch[1], 10);
+			}
+		}
+
 		// Get the file
-		const file = this.app.metadataCache.getFirstLinkpathDest(src, '');
+		const file = this.app.metadataCache.getFirstLinkpathDest(filePath, '');
 		if (!file || !(file instanceof TFile)) {
-			console.error('Go Board Viewer: Could not find file:', src);
+			console.error('Go Board Viewer: Could not find file:', filePath);
 			return;
 		}
 
@@ -457,8 +470,8 @@ export default class GoBoardViewerPlugin extends Plugin {
 			// Add our container inside the embed
 			const container = embed.createDiv('goboard-container');
 
-			// Render the board
-			this.renderGoBoard(container, sgfContent);
+			// Render the board with initial move parameter
+			this.renderGoBoard(container, sgfContent, false, undefined, initialMove);
 		} catch (error) {
 			console.error('Go Board Viewer: Error loading SGF:', error);
 		}
@@ -611,16 +624,6 @@ export default class GoBoardViewerPlugin extends Plugin {
 		el: HTMLElement,
 		ctx: MarkdownPostProcessorContext
 	) {
-		// Log every call to see if this is being invoked
-		const hasInternalLink = el.querySelector('a.internal-link');
-		const hasSgfText = el.textContent?.includes('.sgf');
-
-		if (hasInternalLink || hasSgfText) {
-			console.debug('=== processSGFFileEmbed called ===');
-			console.debug('Element:', el.tagName, el.className);
-			console.debug('Has internal-link:', !!hasInternalLink);
-			console.debug('Text content:', el.textContent?.substring(0, 100));
-		}
 
 		// Check if this element itself is an SGF embed
 		const isSGFEmbed = el.classList.contains('internal-embed') &&
@@ -674,32 +677,36 @@ export default class GoBoardViewerPlugin extends Plugin {
 	 * Helper to process a single embed element
 	 */
 	async processEmbed(embed: HTMLElement, ctx: MarkdownPostProcessorContext) {
-		// Try to get the file path from various attributes
-		let src = embed.getAttribute('src') || embed.getAttribute('alt');
+		// For processEmbed, src contains the filename and alt contains parameters
+		const srcAttr = embed.getAttribute('src');
+		const altAttr = embed.getAttribute('alt');
 
-		console.debug('processEmbed - Found embed:', embed);
-		console.debug('processEmbed - src attribute:', src);
-
-		if (!src || !src.toLowerCase().endsWith('.sgf')) {
-			console.debug('processEmbed - Not an SGF file, skipping');
+		if (!srcAttr || !srcAttr.toLowerCase().endsWith('.sgf')) {
 			return;
 		}
 
-		console.debug('processEmbed - Processing SGF file:', src);
+		// Extract move parameter from alt attribute (e.g., alt="move=10")
+		let initialMove = 0;
+		const filePath = srcAttr;
+
+		if (altAttr) {
+			const moveMatch = altAttr.match(/move=(\d+)/);
+			if (moveMatch) {
+				initialMove = parseInt(moveMatch[1], 10);
+			}
+		}
 
 		// Get the file
-		const file = this.app.metadataCache.getFirstLinkpathDest(src, ctx.sourcePath);
-		console.debug('processEmbed - Resolved file:', file);
+		const file = this.app.metadataCache.getFirstLinkpathDest(filePath, ctx.sourcePath);
 
 		if (!file) {
-			console.error('processEmbed - Could not find file:', src);
+			console.error('Go Board Viewer: Could not find file:', filePath);
 			return;
 		}
 
 		if (file instanceof TFile) {
 			try {
 				const sgfContent = await this.app.vault.read(file);
-				console.debug('processEmbed - Read SGF content, length:', sgfContent.length);
 
 				// Create container for the Go board
 				const container = document.createElement('div');
@@ -708,11 +715,10 @@ export default class GoBoardViewerPlugin extends Plugin {
 				// Replace the embed with our Go board
 				embed.replaceWith(container);
 
-				// Render the board
-				this.renderGoBoard(container, sgfContent);
-				console.debug('processEmbed - Successfully rendered Go board for:', src);
+				// Render the board with initial move parameter
+				this.renderGoBoard(container, sgfContent, false, ctx, initialMove);
 			} catch (error) {
-				console.error('processEmbed - Error reading or rendering SGF file:', error);
+				console.error('Go Board Viewer: Error reading or rendering SGF file:', error);
 				const errorDiv = document.createElement('div');
 				errorDiv.className = 'goboard-error';
 				errorDiv.textContent = `Error loading SGF file: ${error.message}`;
