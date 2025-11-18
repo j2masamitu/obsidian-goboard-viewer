@@ -1213,9 +1213,103 @@ export default class GoBoardViewerPlugin extends Plugin {
 			let currentMode = 'move';
 			let currentLabelText = 'A';
 
+			// Function to update game info display
+			const updateGameInfoDisplay = () => {
+				const existingInfoSection = wrapper.querySelector('.goboard-game-info');
+				if (existingInfoSection) {
+					existingInfoSection.remove();
+				}
+
+				// Re-extract game information from rootNode
+				const nodeData = rootNode.data || {};
+				const updatedGameInfo = {
+					black: nodeData.PB ? nodeData.PB[0] : null,
+					white: nodeData.PW ? nodeData.PW[0] : null,
+					blackRank: nodeData.BR ? nodeData.BR[0] : null,
+					whiteRank: nodeData.WR ? nodeData.WR[0] : null,
+					result: nodeData.RE ? nodeData.RE[0] : null,
+					date: nodeData.DT ? nodeData.DT[0] : null,
+					event: nodeData.EV ? nodeData.EV[0] : null,
+					round: nodeData.RO ? nodeData.RO[0] : null,
+					place: nodeData.PC ? nodeData.PC[0] : null,
+					gameName: nodeData.GN ? nodeData.GN[0] : null,
+					komi: nodeData.KM ? nodeData.KM[0] : null,
+					handicap: nodeData.HA ? nodeData.HA[0] : null,
+					rules: nodeData.RU ? nodeData.RU[0] : null,
+				};
+
+				if (updatedGameInfo.black || updatedGameInfo.white || updatedGameInfo.event || updatedGameInfo.gameName) {
+					const infoSection = document.createElement('div');
+					infoSection.className = 'goboard-game-info';
+
+					if (updatedGameInfo.gameName) {
+						const titleEl = document.createElement('div');
+						titleEl.className = 'game-info-title';
+						titleEl.textContent = updatedGameInfo.gameName;
+						infoSection.appendChild(titleEl);
+					}
+
+					if (updatedGameInfo.event) {
+						const eventEl = document.createElement('div');
+						eventEl.className = 'game-info-event';
+						eventEl.textContent = updatedGameInfo.event;
+						if (updatedGameInfo.round) {
+							eventEl.textContent += ` - Round ${updatedGameInfo.round}`;
+						}
+						infoSection.appendChild(eventEl);
+					}
+
+					const playersEl = document.createElement('div');
+					playersEl.className = 'game-info-players';
+
+					if (updatedGameInfo.black || updatedGameInfo.white) {
+						const blackName = updatedGameInfo.black || 'Unknown';
+						const whiteName = updatedGameInfo.white || 'Unknown';
+						const blackRank = updatedGameInfo.blackRank ? ` (${updatedGameInfo.blackRank})` : '';
+						const whiteRank = updatedGameInfo.whiteRank ? ` (${updatedGameInfo.whiteRank})` : '';
+
+						const blackSpan = playersEl.createSpan({ cls: 'player-black' })
+						blackSpan.textContent = `⚫ ${blackName}${blackRank}`;
+						playersEl.appendText(' vs ');
+						const whiteSpan = playersEl.createSpan({ cls: 'player-white' })
+						whiteSpan.textContent = `⚪ ${whiteName}${whiteRank}`;
+						infoSection.appendChild(playersEl);
+					}
+
+					const detailsEl = document.createElement('div');
+					detailsEl.className = 'game-info-details';
+					const details = [];
+
+					if (updatedGameInfo.date) details.push(`Date: ${updatedGameInfo.date}`);
+					if (updatedGameInfo.place) details.push(`Place: ${updatedGameInfo.place}`);
+					if (updatedGameInfo.komi) details.push(`Komi: ${updatedGameInfo.komi}`);
+					if (updatedGameInfo.handicap) details.push(`Handicap: ${updatedGameInfo.handicap}`);
+					if (updatedGameInfo.rules) details.push(`Rules: ${updatedGameInfo.rules}`);
+					if (updatedGameInfo.result) details.push(`Result: ${updatedGameInfo.result}`);
+
+					if (details.length > 0) {
+						detailsEl.textContent = details.join(' • ');
+						infoSection.appendChild(detailsEl);
+					}
+
+					// Insert at the beginning of wrapper (before board container)
+					const boardContainer = wrapper.querySelector('.goboard-display');
+					if (boardContainer) {
+						wrapper.insertBefore(infoSection, boardContainer);
+					} else {
+						wrapper.appendChild(infoSection);
+					}
+				}
+			};
+
 			// Render function
 			const renderBoard = () => {
 				const signMap = getBoardState();
+
+				// Update game info display
+				if (editMode) {
+					updateGameInfoDisplay();
+				}
 
 				console.debug('Rendering board at move:', moveNumber);
 				console.debug('SignMap:', signMap);
@@ -1379,6 +1473,7 @@ export default class GoBoardViewerPlugin extends Plugin {
 					variationSpan.textContent = '(has variations)';
 				}
 
+				// Comment section (display only)
 				if (comment) {
 					const commentDiv = infoDiv.createDiv({ cls: 'goboard-comment' })
 					commentDiv.textContent = comment;
@@ -1445,6 +1540,113 @@ export default class GoBoardViewerPlugin extends Plugin {
 					});
 
 					controlsContainer.appendChild(modeSelectorContainer);
+
+					// Add comment editor
+					const existingCommentEditor = controlsContainer.querySelector('.goboard-comment-editor');
+					if (existingCommentEditor) {
+						existingCommentEditor.remove();
+					}
+
+					const commentEditor = controlsContainer.createDiv({ cls: 'goboard-comment-editor' });
+					const commentEditorTitle = commentEditor.createEl('strong');
+					commentEditorTitle.textContent = 'Comment for current position:';
+					const commentTextarea = commentEditor.createEl('textarea');
+					commentTextarea.className = 'goboard-comment-edit';
+					commentTextarea.value = comment;
+					commentTextarea.placeholder = 'Enter comment for this position...';
+
+					// Capture currentNode reference
+					const nodeToEdit = currentNode;
+
+					const saveCommentBtn = commentEditor.createEl('button');
+					saveCommentBtn.className = 'goboard-btn goboard-btn-save';
+					saveCommentBtn.textContent = '💾 Save Comment';
+					saveCommentBtn.onclick = () => {
+						if (!nodeToEdit.data) {
+							nodeToEdit.data = {};
+						}
+						if (commentTextarea.value.trim()) {
+							nodeToEdit.data.C = [commentTextarea.value];
+						} else {
+							delete nodeToEdit.data.C;
+						}
+						renderBoard();
+						saveCommentBtn.textContent = '✓ Saved!';
+						setTimeout(() => {
+							saveCommentBtn.textContent = '💾 Save Comment';
+						}, 1000);
+					};
+
+					controlsContainer.appendChild(commentEditor);
+
+					// Add game info editor
+					const existingGameInfoEditor = controlsContainer.querySelector('.goboard-game-info-editor');
+					if (existingGameInfoEditor) {
+						existingGameInfoEditor.remove();
+					}
+
+					const gameInfoEditor = controlsContainer.createDiv({ cls: 'goboard-game-info-editor' });
+					const gameInfoTitle = gameInfoEditor.createEl('strong');
+					gameInfoTitle.textContent = 'Game Information:';
+
+					const gameInfoGrid = gameInfoEditor.createDiv({ cls: 'game-info-grid' });
+
+					// Store all input elements for batch save
+					const gameInfoInputs: HTMLInputElement[] = [];
+
+					// Modified helper function to store input references
+					const createInfoInput = (label: string, property: string, placeholder: string) => {
+						const row = gameInfoGrid.createDiv({ cls: 'game-info-row' });
+						const labelEl = row.createEl('label');
+						labelEl.textContent = label + ':';
+						const input = row.createEl('input');
+						input.type = 'text';
+						input.placeholder = placeholder;
+						input.value = rootNode.data?.[property]?.[0] || '';
+						input.dataset.property = property;
+						gameInfoInputs.push(input);
+					};
+
+					createInfoInput('Black Player', 'PB', 'Player name');
+					createInfoInput('Black Rank', 'BR', 'e.g. 5d');
+					createInfoInput('White Player', 'PW', 'Player name');
+					createInfoInput('White Rank', 'WR', 'e.g. 3d');
+					createInfoInput('Game Name', 'GN', 'Game title');
+					createInfoInput('Event', 'EV', 'Tournament name');
+					createInfoInput('Round', 'RO', 'Round number');
+					createInfoInput('Date', 'DT', 'YYYY-MM-DD');
+					createInfoInput('Place', 'PC', 'Location');
+					createInfoInput('Komi', 'KM', 'e.g. 6.5');
+					createInfoInput('Handicap', 'HA', 'Number of stones');
+					createInfoInput('Result', 'RE', 'e.g. B+3.5');
+					createInfoInput('Rules', 'RU', 'e.g. Japanese');
+
+					// Add save button for game info
+					const saveGameInfoBtn = gameInfoEditor.createEl('button');
+					saveGameInfoBtn.className = 'goboard-btn goboard-btn-save';
+					saveGameInfoBtn.textContent = '💾 Save Game Info';
+					saveGameInfoBtn.onclick = () => {
+						if (!rootNode.data) {
+							rootNode.data = {};
+						}
+						gameInfoInputs.forEach(input => {
+							const property = input.dataset.property;
+							if (property && rootNode.data) {
+								if (input.value.trim()) {
+									rootNode.data[property] = [input.value];
+								} else {
+									delete rootNode.data[property];
+								}
+							}
+						});
+						renderBoard();
+						saveGameInfoBtn.textContent = '✓ Saved!';
+						setTimeout(() => {
+							saveGameInfoBtn.textContent = '💾 Save Game Info';
+						}, 1000);
+					};
+
+					controlsContainer.appendChild(gameInfoEditor);
 
 					// Add delete button in edit mode
 					const existingDeleteBtn = controlsContainer.querySelector('.goboard-delete-container');
