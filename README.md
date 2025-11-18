@@ -11,9 +11,24 @@ An Obsidian plugin that displays SGF (Smart Game Format) files and code blocks a
 ### Core Features
 - **📱 Mobile & Desktop Support**: Full functionality on iOS, Android, Windows, Mac, and Linux
 - **SGF Code Block Support**: Automatically renders SGF text in ````sgf` code blocks as interactive Go boards
-- **SGF File Embedding**: Display `.sgf` files using `![[game.sgf]]` syntax
+- **SGF File Embedding**: Display `.sgf` files using `![[game.sgf]]` syntax with optional parameters
+  - `move` parameter: Start at a specific move number (e.g., `![[game.sgf|move=10]]`)
 - **Direct File Opening**: Open `.sgf` files directly in Obsidian
 - **Game Information Display**: Shows player names, ranks, event, date, komi, handicap, and result
+
+### SGF Editor (New in v2.0.0)
+- **View/Edit Mode Selection**: Choose mode by code block language tag
+  - ````sgf` - View-only mode (default): Navigate and view games with full playback controls
+  - ````sgf-edit` - Edit mode: Interactive editing with board manipulation
+- **Interactive Editing**: Click on the board to make changes
+  - **Add stones**: Place black or white stones
+  - **Remove stones**: Remove existing stones
+  - **Add labels**: Add custom text labels to intersections
+- **Comment Editor**: Edit and save comments for the current position
+- **Game Info Editor**: Edit player names, ranks, and game title
+- **Move Deletion**: Delete moves from current position onwards
+- **SGF Output**: View and copy the edited SGF text in real-time
+- **Auto-play Mode**: Automatic move playback with play/pause controls (view mode only)
 
 ### Playback & Navigation
 - **Playback Controls**: Navigate through game moves with First/Previous/Next/Last buttons
@@ -88,9 +103,9 @@ Development mode watches for file changes and automatically rebuilds.
 
 ## Usage
 
-### Method 1: SGF Code Block
+### Method 1: SGF Code Block (View Mode)
 
-Add an SGF code block to your markdown note:
+Add an SGF code block to your markdown note for viewing:
 
 ````markdown
 ```sgf
@@ -99,6 +114,25 @@ Add an SGF code block to your markdown note:
 ;W[qc]C[A direct 3–3 invasion])
 ```
 ````
+
+### Method 1b: SGF Code Block (Edit Mode)
+
+Use `sgf-edit` language tag to enable editing:
+
+````markdown
+```sgf-edit
+(;SZ[19];B[pd]C[Star point]
+;W[dp];B[qp];W[dc];B[nq]
+;W[qc]C[A direct 3–3 invasion])
+```
+````
+
+In edit mode, you can:
+- Click on intersections to add/remove stones or labels
+- Edit comments for the current position
+- Edit game information (player names, ranks, etc.)
+- Delete moves from the current position
+- Copy the edited SGF from the output area
 
 ### Method 2: Embed SGF File
 
@@ -185,7 +219,6 @@ Click a variation button to switch between branches.
 
 ## Known Limitations
 
-- Does not support game editing (view-only)
 - Time information (BL, WL) is not displayed
 - Some advanced SGF properties may not be fully supported
 

@@ -5,6 +5,51 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - 2025-11-19
+
+### Added
+- **SGF Editor Mode**: Interactive editing capabilities for SGF files and code blocks
+  - View/Edit mode toggle button for switching between viewing and editing
+  - Multiple edit modes:
+    - **Add stones**: Place black or white stones on the board
+    - **Remove stones**: Remove stones from the board
+    - **Add labels**: Add text labels to intersections
+  - Label input field with real-time preview when in label mode
+- **Comment Editor**: Edit and save comments for the current position
+  - Save comment button with visual feedback
+  - Comments are preserved in the SGF structure
+- **Game Information Editor**: Edit game metadata
+  - Black player name and rank
+  - White player name and rank
+  - Game name/title
+  - All changes are reflected in the SGF output
+- **Move Deletion**: Delete moves from the current position onwards
+  - "Delete from here" button with confirmation
+  - Removes all subsequent moves in the game tree
+- **SGF Output Display**: View and export the edited SGF
+  - Real-time SGF generation as you edit
+  - Read-only textarea showing the complete SGF string
+  - Easy copy-paste for sharing or saving edited games
+- **Auto-play Mode**: Automatic move playback with controls
+  - Play/Pause button for starting and stopping auto-play
+  - 1-second interval between moves
+  - Automatically stops at the end of the game
+- **Enhanced Viewer Mode**: New parameter support for embedded SGF files
+  - `move` parameter: Start at a specific move number (e.g., `![[game.sgf|move=10]]`)
+  - Initial position display on load
+
+### Changed
+- Improved UI layout with better organization of controls
+- Editor controls are shown only when in edit mode
+- Game info display is updated dynamically when edited
+- All UI text updated to sentence case for consistency
+
+### Technical
+- Added ESLint configuration for code quality
+- Implemented proper CSS class-based element visibility
+- Enhanced SGF tree manipulation and regeneration
+- Improved state management for edit modes
+
 ## [1.2.2] - 2025-11-16
 
 ### Fixed
