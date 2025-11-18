@@ -571,13 +571,26 @@ export default class GoBoardViewerPlugin extends Plugin {
 
 	/**
 	 * Process SGF code blocks (```sgf ... ```)
+	 * Supports optional move parameter in first line:
+	 *   <!-- move=3 --> for move 3 in main line
 	 */
 	processSGFCodeBlock(
 		source: string,
 		el: HTMLElement,
 		ctx: MarkdownPostProcessorContext
 	) {
-		this.renderGoBoard(el, source.trim());
+		// Check for move parameter in first line
+		let initialMove = 0;
+		let sgfContent = source.trim();
+
+		// Look for HTML comment with move parameter
+		const moveMatch = sgfContent.match(/^<!--\s*move\s*=\s*(\d+)\s*-->\s*/);
+		if (moveMatch) {
+			initialMove = parseInt(moveMatch[1]);
+			sgfContent = sgfContent.replace(moveMatch[0], '').trim();
+		}
+
+		this.renderGoBoard(el, sgfContent, false, ctx, initialMove);
 	}
 
 	/**
@@ -711,7 +724,7 @@ export default class GoBoardViewerPlugin extends Plugin {
 	/**
 	 * Render a Go board with the given SGF content using Sabaki
 	 */
-	public renderGoBoard(container: HTMLElement, sgfContent: string, editMode: boolean = false, ctx?: MarkdownPostProcessorContext) {
+	public renderGoBoard(container: HTMLElement, sgfContent: string, editMode: boolean = false, ctx?: MarkdownPostProcessorContext, initialMove: number = 0) {
 		try {
 			// Parse SGF
 			const gameTrees = sgf.parse(sgfContent) as SGFGameTree[];
@@ -843,6 +856,11 @@ export default class GoBoardViewerPlugin extends Plugin {
 				wrapper.appendChild(infoSection);
 			}
 
+			// Create auto-play container (will be populated later, only in viewer mode)
+			const autoPlayContainerPlaceholder = document.createElement('div');
+			autoPlayContainerPlaceholder.className = 'goboard-autoplay-placeholder';
+			wrapper.appendChild(autoPlayContainerPlaceholder);
+
 			// Create board container
 			const boardContainer = document.createElement('div');
 			boardContainer.className = 'goboard-display';
@@ -855,8 +873,10 @@ export default class GoBoardViewerPlugin extends Plugin {
 			controlsContainer.className = 'goboard-controls';
 			wrapper.appendChild(controlsContainer);
 
-			// Game state
-			let moveNumber = 0;
+			// Create comment display container (will be updated in renderBoard)
+			const commentDisplayContainer = document.createElement('div');
+			commentDisplayContainer.className = 'goboard-comment-display-container';
+			wrapper.appendChild(commentDisplayContainer);
 
 			// Build move tree with variations
 			interface MoveNode {
@@ -917,10 +937,11 @@ export default class GoBoardViewerPlugin extends Plugin {
 				allMoves.push(...moves);
 			};
 
-			// Initialize with main line
-			rootVariationIndex = 0;
-			currentVariationPath = [];
+			// Initialize move tree with main line
 			rebuildMoveTree();
+
+			// Set initial move number
+			let moveNumber = initialMove;
 
 			console.debug('Collected moves:', allMoves.length);
 
@@ -938,6 +959,31 @@ export default class GoBoardViewerPlugin extends Plugin {
 				} else if (moveNumber > 0 && moveNumber <= allMoves.length) {
 					const moveNode = allMoves[moveNumber - 1];
 					currentNodeData = moveNode.node?.data || {};
+				}
+
+				// Add last move marker (using circle for standard display)
+				if (moveNumber > 0 && moveNumber <= allMoves.length) {
+					const lastMove = allMoves[moveNumber - 1];
+					const lastMoveData = lastMove.node?.data || {};
+					let lastMoveVertex: [number, number] | null = null;
+
+					// Check if it's a black or white move
+					if (lastMoveData.B && Array.isArray(lastMoveData.B) && lastMoveData.B[0]) {
+						const coords = this.point2vertex(lastMoveData.B[0]);
+						if (coords.x >= 0 && coords.y >= 0 && coords.x < boardSize && coords.y < boardSize) {
+							lastMoveVertex = [coords.x, coords.y];
+						}
+					} else if (lastMoveData.W && Array.isArray(lastMoveData.W) && lastMoveData.W[0]) {
+						const coords = this.point2vertex(lastMoveData.W[0]);
+						if (coords.x >= 0 && coords.y >= 0 && coords.x < boardSize && coords.y < boardSize) {
+							lastMoveVertex = [coords.x, coords.y];
+						}
+					}
+
+					// Mark the last move with a circle marker (standard last move marker)
+					if (lastMoveVertex) {
+						markerMap[lastMoveVertex[1]][lastMoveVertex[0]] = { type: 'circle' };
+					}
 				}
 
 				// Process SGF marker properties
@@ -974,7 +1020,7 @@ export default class GoBoardViewerPlugin extends Plugin {
 					});
 				}
 
-				// MA - Mark (X)
+				// MA - Mark (X) - these override last move markers
 				if (currentNodeData.MA) {
 					const marks = Array.isArray(currentNodeData.MA) ? currentNodeData.MA : [currentNodeData.MA];
 					marks.forEach((point: string) => {
@@ -1473,13 +1519,14 @@ export default class GoBoardViewerPlugin extends Plugin {
 					variationSpan.textContent = '(has variations)';
 				}
 
-				// Comment section (display only)
+				controlsContainer.insertBefore(infoDiv, controlsContainer.firstChild);
+
+				// Update comment display in separate container (below controls)
+				commentDisplayContainer.empty();
 				if (comment) {
-					const commentDiv = infoDiv.createDiv({ cls: 'goboard-comment' })
+					const commentDiv = commentDisplayContainer.createDiv({ cls: 'goboard-comment' })
 					commentDiv.textContent = comment;
 				}
-
-				controlsContainer.insertBefore(infoDiv, controlsContainer.firstChild);
 
 				// Add edit mode controls
 				if (editMode) {
@@ -1829,6 +1876,111 @@ export default class GoBoardViewerPlugin extends Plugin {
 			btnContainer.appendChild(btnLast);
 
 			controlsContainer.appendChild(btnContainer);
+
+			// Add auto-play controls (only in viewer mode, not in edit mode)
+			// Place them above the board in the placeholder container
+			if (!editMode) {
+				let autoPlayInterval: ReturnType<typeof setInterval> | null = null;
+				let isPlaying = false;
+				let autoPlaySpeed = 2; // default 2 seconds per move
+
+				const autoPlayContainer = document.createElement('div');
+				autoPlayContainer.className = 'goboard-autoplay-controls';
+
+				// Auto-play button
+				const btnAutoPlay = document.createElement('button');
+				btnAutoPlay.className = 'goboard-btn goboard-btn-autoplay';
+				btnAutoPlay.textContent = '▶ Auto Play';
+				btnAutoPlay.onclick = () => {
+					if (isPlaying) {
+						// Stop auto-play
+						if (autoPlayInterval) {
+							clearInterval(autoPlayInterval);
+							autoPlayInterval = null;
+						}
+						isPlaying = false;
+						btnAutoPlay.textContent = '▶ Auto Play';
+						btnAutoPlay.classList.remove('playing');
+					} else {
+						// Start auto-play
+						isPlaying = true;
+						btnAutoPlay.textContent = '⏸ Pause';
+						btnAutoPlay.classList.add('playing');
+
+						autoPlayInterval = setInterval(() => {
+							const totalMoves = allMoves ? allMoves.length : 0;
+							if (moveNumber < totalMoves) {
+								moveNumber++;
+								renderBoard();
+							} else {
+								// Reached the end, stop auto-play
+								if (autoPlayInterval) {
+									clearInterval(autoPlayInterval);
+									autoPlayInterval = null;
+								}
+								isPlaying = false;
+								btnAutoPlay.textContent = '▶ Auto Play';
+								btnAutoPlay.classList.remove('playing');
+							}
+						}, autoPlaySpeed * 1000);
+					}
+				};
+
+				// Speed selector
+				const speedLabel = document.createElement('label');
+				speedLabel.className = 'goboard-autoplay-label';
+				speedLabel.textContent = 'Speed:';
+
+				const speedSelect = document.createElement('select');
+				speedSelect.className = 'goboard-autoplay-speed';
+				const speeds = [
+					{ value: 1, label: '1 sec/move' },
+					{ value: 2, label: '2 sec/move' },
+					{ value: 3, label: '3 sec/move' },
+					{ value: 5, label: '5 sec/move' },
+					{ value: 10, label: '10 sec/move' }
+				];
+
+				speeds.forEach(speed => {
+					const option = document.createElement('option');
+					option.value = String(speed.value);
+					option.textContent = speed.label;
+					if (speed.value === autoPlaySpeed) {
+						option.selected = true;
+					}
+					speedSelect.appendChild(option);
+				});
+
+				speedSelect.onchange = () => {
+					autoPlaySpeed = parseInt(speedSelect.value);
+					// If currently playing, restart with new speed
+					if (isPlaying && autoPlayInterval) {
+						clearInterval(autoPlayInterval);
+						autoPlayInterval = setInterval(() => {
+							const totalMoves = allMoves ? allMoves.length : 0;
+							if (moveNumber < totalMoves) {
+								moveNumber++;
+								renderBoard();
+							} else {
+								if (autoPlayInterval) {
+									clearInterval(autoPlayInterval);
+									autoPlayInterval = null;
+								}
+								isPlaying = false;
+								btnAutoPlay.textContent = '▶ Auto Play';
+								btnAutoPlay.classList.remove('playing');
+							}
+						}, autoPlaySpeed * 1000);
+					}
+				};
+
+				autoPlayContainer.appendChild(btnAutoPlay);
+				autoPlayContainer.appendChild(speedLabel);
+				autoPlayContainer.appendChild(speedSelect);
+
+				// Add to placeholder above the board
+				autoPlayContainerPlaceholder.appendChild(autoPlayContainer);
+			}
 
 			// Initial render
 			renderBoard();
