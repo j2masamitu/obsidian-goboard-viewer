@@ -1564,7 +1564,9 @@ export default class GoBoardViewerPlugin extends Plugin {
 
 					// Add label input (shown only when Label mode is selected)
 					const labelInputContainer = modeSelectorContainer.createDiv({ cls: 'goboard-label-input-container' });
-					labelInputContainer.style.display = currentMode === 'label' ? 'inline' : 'none';
+					if (currentMode !== 'label') {
+						labelInputContainer.addClass('hidden');
+					}
 					const labelInputLabel = labelInputContainer.createEl('span');
 					labelInputLabel.textContent = ' Text: ';
 					const labelInput = labelInputContainer.createEl('input');
@@ -1576,9 +1578,9 @@ export default class GoBoardViewerPlugin extends Plugin {
 					modeSelect.addEventListener('change', () => {
 						currentMode = modeSelect.value;
 						if (modeSelect.value === 'label') {
-							labelInputContainer.style.display = 'inline';
+							labelInputContainer.removeClass('hidden');
 						} else {
-							labelInputContainer.style.display = 'none';
+							labelInputContainer.addClass('hidden');
 						}
 					});
 
@@ -1596,18 +1598,18 @@ export default class GoBoardViewerPlugin extends Plugin {
 
 					const commentEditor = controlsContainer.createDiv({ cls: 'goboard-comment-editor' });
 					const commentEditorTitle = commentEditor.createEl('strong');
-					commentEditorTitle.textContent = 'Comment for current position:';
+					commentEditorTitle.textContent = 'Comment for current position';
 					const commentTextarea = commentEditor.createEl('textarea');
 					commentTextarea.className = 'goboard-comment-edit';
 					commentTextarea.value = comment;
-					commentTextarea.placeholder = 'Enter comment for this position...';
+					commentTextarea.placeholder = 'Enter comment for this position';
 
 					// Capture currentNode reference
 					const nodeToEdit = currentNode;
 
 					const saveCommentBtn = commentEditor.createEl('button');
 					saveCommentBtn.className = 'goboard-btn goboard-btn-save';
-					saveCommentBtn.textContent = '💾 Save Comment';
+					saveCommentBtn.textContent = '💾 save comment';
 					saveCommentBtn.onclick = () => {
 						if (!nodeToEdit.data) {
 							nodeToEdit.data = {};
@@ -1618,9 +1620,9 @@ export default class GoBoardViewerPlugin extends Plugin {
 							delete nodeToEdit.data.C;
 						}
 						renderBoard();
-						saveCommentBtn.textContent = '✓ Saved!';
+						saveCommentBtn.textContent = '✓ saved';
 						setTimeout(() => {
-							saveCommentBtn.textContent = '💾 Save Comment';
+							saveCommentBtn.textContent = '💾 save comment';
 						}, 1000);
 					};
 
@@ -1634,7 +1636,7 @@ export default class GoBoardViewerPlugin extends Plugin {
 
 					const gameInfoEditor = controlsContainer.createDiv({ cls: 'goboard-game-info-editor' });
 					const gameInfoTitle = gameInfoEditor.createEl('strong');
-					gameInfoTitle.textContent = 'Game Information:';
+					gameInfoTitle.textContent = 'Game information';
 
 					const gameInfoGrid = gameInfoEditor.createDiv({ cls: 'game-info-grid' });
 
@@ -1654,11 +1656,11 @@ export default class GoBoardViewerPlugin extends Plugin {
 						gameInfoInputs.push(input);
 					};
 
-					createInfoInput('Black Player', 'PB', 'Player name');
-					createInfoInput('Black Rank', 'BR', 'e.g. 5d');
-					createInfoInput('White Player', 'PW', 'Player name');
-					createInfoInput('White Rank', 'WR', 'e.g. 3d');
-					createInfoInput('Game Name', 'GN', 'Game title');
+					createInfoInput('Black player', 'PB', 'Player name');
+					createInfoInput('Black rank', 'BR', 'e.g. 5d');
+					createInfoInput('White player', 'PW', 'Player name');
+					createInfoInput('White rank', 'WR', 'e.g. 3d');
+					createInfoInput('Game name', 'GN', 'Game title');
 					createInfoInput('Event', 'EV', 'Tournament name');
 					createInfoInput('Round', 'RO', 'Round number');
 					createInfoInput('Date', 'DT', 'YYYY-MM-DD');
@@ -1671,7 +1673,7 @@ export default class GoBoardViewerPlugin extends Plugin {
 					// Add save button for game info
 					const saveGameInfoBtn = gameInfoEditor.createEl('button');
 					saveGameInfoBtn.className = 'goboard-btn goboard-btn-save';
-					saveGameInfoBtn.textContent = '💾 Save Game Info';
+					saveGameInfoBtn.textContent = '💾 save game info';
 					saveGameInfoBtn.onclick = () => {
 						if (!rootNode.data) {
 							rootNode.data = {};
@@ -1687,9 +1689,9 @@ export default class GoBoardViewerPlugin extends Plugin {
 							}
 						});
 						renderBoard();
-						saveGameInfoBtn.textContent = '✓ Saved!';
+						saveGameInfoBtn.textContent = '✓ saved';
 						setTimeout(() => {
-							saveGameInfoBtn.textContent = '💾 Save Game Info';
+							saveGameInfoBtn.textContent = '💾 save game info';
 						}, 1000);
 					};
 
@@ -1704,7 +1706,7 @@ export default class GoBoardViewerPlugin extends Plugin {
 					const deleteContainer = controlsContainer.createDiv({ cls: 'goboard-delete-container' });
 					const btnDeleteFromHere = deleteContainer.createEl('button');
 					btnDeleteFromHere.className = 'goboard-btn goboard-btn-delete';
-					btnDeleteFromHere.textContent = '🗑 Delete from here';
+					btnDeleteFromHere.textContent = '🗑 delete from here';
 					btnDeleteFromHere.onclick = () => {
 						const newMoveNumber = this.deleteFromCurrentNode(rootNode, allMoves, moveNumber, rebuildMoveTree);
 						moveNumber = newMoveNumber;
@@ -1721,7 +1723,7 @@ export default class GoBoardViewerPlugin extends Plugin {
 
 					const sgfOutputContainer = controlsContainer.createDiv({ cls: 'goboard-sgf-output' });
 					const sgfLabel = sgfOutputContainer.createEl('strong');
-					sgfLabel.textContent = 'SGF output:';
+					sgfLabel.textContent = 'Output';
 
 					const sgfTextarea = sgfOutputContainer.createEl('textarea');
 					sgfTextarea.className = 'goboard-sgf-textarea';
@@ -1735,7 +1737,7 @@ export default class GoBoardViewerPlugin extends Plugin {
 					if (ctx) {
 						const writeBtn = btnContainer.createEl('button');
 						writeBtn.className = 'goboard-btn goboard-btn-write';
-						writeBtn.textContent = '💾 Write to Note';
+						writeBtn.textContent = '💾 write to note';
 						writeBtn.onclick = async () => {
 							try {
 								const file = this.app.vault.getAbstractFileByPath(ctx.sourcePath);
@@ -1748,16 +1750,16 @@ export default class GoBoardViewerPlugin extends Plugin {
 									const newContent = content.replace(regex, `\`\`\`sgf-edit\n${newSgf}\n\`\`\``);
 
 									await this.app.vault.modify(file, newContent);
-									writeBtn.textContent = '✓ Written!';
+									writeBtn.textContent = '✓ written';
 									setTimeout(() => {
-										writeBtn.textContent = '💾 Write to Note';
+										writeBtn.textContent = '💾 write to note';
 									}, 2000);
 								}
 							} catch (error) {
 								console.error('Error writing to note:', error);
-								writeBtn.textContent = '✗ Error';
+								writeBtn.textContent = '✗ error occurred';
 								setTimeout(() => {
-									writeBtn.textContent = '💾 Write to Note';
+									writeBtn.textContent = '💾 write to note';
 								}, 2000);
 							}
 						};
@@ -1890,7 +1892,7 @@ export default class GoBoardViewerPlugin extends Plugin {
 				// Auto-play button
 				const btnAutoPlay = document.createElement('button');
 				btnAutoPlay.className = 'goboard-btn goboard-btn-autoplay';
-				btnAutoPlay.textContent = '▶ Auto Play';
+				btnAutoPlay.textContent = '▶ auto play';
 				btnAutoPlay.onclick = () => {
 					if (isPlaying) {
 						// Stop auto-play
@@ -1899,12 +1901,12 @@ export default class GoBoardViewerPlugin extends Plugin {
 							autoPlayInterval = null;
 						}
 						isPlaying = false;
-						btnAutoPlay.textContent = '▶ Auto Play';
+						btnAutoPlay.textContent = '▶ auto play';
 						btnAutoPlay.classList.remove('playing');
 					} else {
 						// Start auto-play
 						isPlaying = true;
-						btnAutoPlay.textContent = '⏸ Pause';
+						btnAutoPlay.textContent = '⏸ pause';
 						btnAutoPlay.classList.add('playing');
 
 						autoPlayInterval = setInterval(() => {
@@ -1919,7 +1921,7 @@ export default class GoBoardViewerPlugin extends Plugin {
 									autoPlayInterval = null;
 								}
 								isPlaying = false;
-								btnAutoPlay.textContent = '▶ Auto Play';
+								btnAutoPlay.textContent = '▶ auto play';
 								btnAutoPlay.classList.remove('playing');
 							}
 						}, autoPlaySpeed * 1000);
@@ -1967,7 +1969,7 @@ export default class GoBoardViewerPlugin extends Plugin {
 									autoPlayInterval = null;
 								}
 								isPlaying = false;
-								btnAutoPlay.textContent = '▶ Auto Play';
+								btnAutoPlay.textContent = '▶ auto play';
 								btnAutoPlay.classList.remove('playing');
 							}
 						}, autoPlaySpeed * 1000);

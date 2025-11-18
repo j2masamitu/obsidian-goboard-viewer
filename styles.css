@@ -9,6 +9,11 @@ body {
   --goboard-variation-color: #2196F3;
 }
 
+/* Utility classes */
+.hidden {
+  display: none !important;
+}
+
 .goboard-container {
   margin: 1em 0;
   width: 100%;
