@@ -243,9 +243,9 @@ export default class GoBoardViewerPlugin extends Plugin {
 				markerProperties.forEach(prop => {
 					if (currentNode.data && currentNode.data[prop]) {
 						if (prop === 'LB') {
-							currentNode.data[prop] = currentNode.data[prop]!.filter((item: string) => !item.startsWith(`${point}:`));
+							currentNode.data[prop] = currentNode.data[prop].filter((item: string) => !item.startsWith(`${point}:`));
 						} else {
-							currentNode.data[prop] = currentNode.data[prop]!.filter((p: string) => p !== point);
+							currentNode.data[prop] = currentNode.data[prop].filter((p: string) => p !== point);
 						}
 					}
 				});
@@ -254,7 +254,7 @@ export default class GoBoardViewerPlugin extends Plugin {
 				if (!currentNode.data[property]) {
 					currentNode.data[property] = [];
 				}
-				currentNode.data[property]!.push(value);
+				currentNode.data[property].push(value);
 				console.debug(`Added ${mode} at ${point}`);
 			}
 			return null;
